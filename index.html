@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>HRM Moving Dispatch & Estimator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+    input, select, textarea { -webkit-appearance: none; appearance: none; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen pb-36 md:pb-16 antialiased">
+  <div class="max-w-5xl mx-auto px-4 py-6 md:py-8">
+    
+    <!-- Header -->
+    <header class="flex items-center justify-between pb-4 border-b border-slate-200 mb-6">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
+          🚚
+        </div>
+        <div>
+          <h1 class="text-lg md:text-xl font-bold text-slate-900 tracking-tight leading-tight">HRM Moving Estimator</h1>
+          <p class="text-xs text-slate-500 font-medium">Internal Dispatch Console • Halifax Regional Municipality</p>
+        </div>
+      </div>
+      <div class="hidden sm:flex items-center gap-2">
+        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+          ● 15% NS HST Included
+        </span>
+      </div>
+    </header>
+
+    <!-- Top Glance Hero Card for Desktop/Tablet -->
+    <div class="hidden md:grid grid-cols-12 gap-4 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm mb-6 items-center">
+      <div class="col-span-4 border-r border-slate-100 pr-4">
+        <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-1">Recommended Client Quote</span>
+        <div class="text-4xl font-extrabold text-blue-600" id="topQuoteDisplay">$0.00</div>
+        <p class="text-xs text-slate-500 mt-1 font-medium" id="topCrewSummary">2 Movers • 10' Box Truck</p>
+      </div>
+      <div class="col-span-8 grid grid-cols-4 gap-3 text-center pl-2">
+        <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+          <span class="text-[11px] text-slate-500 block font-medium">U-Haul (+HST)</span>
+          <span id="topUhaulAudit" class="text-sm font-bold text-slate-800">$0.00</span>
+        </div>
+        <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+          <span class="text-[11px] text-slate-500 block font-medium">Labor Payroll</span>
+          <span id="topLaborAudit" class="text-sm font-bold text-slate-800">$0.00</span>
+        </div>
+        <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+          <span class="text-[11px] text-slate-500 block font-medium">Total Cost</span>
+          <span id="topTotalCostAudit" class="text-sm font-bold text-rose-600">$0.00</span>
+        </div>
+        <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-100">
+          <span class="text-[11px] text-emerald-700 block font-semibold">Net Profit</span>
+          <span id="topProfitAudit" class="text-sm font-bold text-emerald-700">$0.00</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      
+      <!-- Left Column: Inputs & Custom Items (7 Cols) -->
+      <div class="lg:col-span-7 space-y-5">
+        
+        <!-- Step 1: Load Mode -->
+        <section class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xs font-bold uppercase tracking-wider text-blue-600">1. Load Scope & Sizing</h2>
+            <span id="modeBadge" class="text-[11px] bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-0.5 rounded-full font-medium">Preset Mode</span>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1.5">Load Type</label>
+            <select id="loadPreset" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none font-medium transition">
+              <option value="single">Single Item / Micro Pickup (Couch, Fridge, Bed)</option>
+              <option value="micro">Studio / Dorm Room / ~15 Boxes</option>
+              <option value="1bed" selected>1-Bedroom Apartment / 5x10 Storage</option>
+              <option value="2bed">2-Bedroom Apartment / Small House</option>
+              <option value="3bed">3-Bedroom House / Large Storage</option>
+              <option value="4bed">4+ Bedroom Estate / Full Heavy Haul</option>
+              <option value="custom">✨ Custom Itemized Load (Build by items)</option>
+            </select>
+          </div>
+
+          <!-- Custom Itemized Builder Container (Hidden by default, shown when Custom is selected) -->
+          <div id="customItemSection" class="hidden pt-3 border-t border-slate-100 space-y-3 bg-blue-50/50 p-3.5 rounded-xl border border-blue-100">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-slate-800">Select Item Quantities</span>
+              <span id="totalVolumeDisplay" class="text-xs font-semibold text-blue-700 bg-white px-2 py-0.5 rounded border border-blue-200">0 cu. ft.</span>
+            </div>
+            
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
+              <label class="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 shadow-2xs cursor-pointer">
+                <span class="text-slate-700 font-medium">Sofa / Couch</span>
+                <input type="number" min="0" value="0" data-vol="50" class="item-qty w-12 text-center bg-slate-50 border border-slate-300 rounded py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500" />
+              </label>
+              <label class="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 shadow-2xs cursor-pointer">
+                <span class="text-slate-700 font-medium">Sectional (L)</span>
+                <input type="number" min="0" value="0" data-vol="110" class="item-qty w-12 text-center bg-slate-50 border border-slate-300 rounded py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500" />
+              </label>
+              <label class="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 shadow-2xs cursor-pointer">
+                <span class="text-slate-700 font-medium">Mattress/Bed</span>
+                <input type="number" min="0" value="0" data-vol="60" class="item-qty w-12 text-center bg-slate-50 border border-slate-300 rounded py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500" />
+              </label>
+              <label class="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 shadow-2xs cursor-pointer">
+                <span class="text-slate-700 font-medium">Dining Table/Chairs</span>
+                <input type="number" min="0" value="0" data-vol="45" class="item-qty w-12 text-center bg-slate-50 border border-slate-300 rounded py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500" />
+              </label>
+              <label class="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 shadow-2xs cursor-pointer">
+                <span class="text-slate-700 font-medium">Fridge/Appliance</span>
+                <input type="number" min="0" value="0" data-vol="40" class="item-qty w-12 text-center bg-slate-50 border border-slate-300 rounded py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500" />
+              </label>
+              <label class="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 shadow-2xs cursor-pointer">
+                <span class="text-slate-700 font-medium">Dresser / Desk</span>
+                <input type="number" min="0" value="0" data-vol="35" class="item-qty w-12 text-center bg-slate-50 border border-slate-300 rounded py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500" />
+              </label>
+              <label class="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 shadow-2xs cursor-pointer">
+                <span class="text-slate-700 font-medium">Boxes (Pack of 5)</span>
+                <input type="number" min="0" value="0" data-vol="25" class="item-qty w-12 text-center bg-slate-50 border border-slate-300 rounded py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500" />
+              </label>
+              <label class="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 shadow-2xs cursor-pointer">
+                <span class="text-slate-700 font-medium">TV / Entertainment</span>
+                <input type="number" min="0" value="0" data-vol="20" class="item-qty w-12 text-center bg-slate-50 border border-slate-300 rounded py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500" />
+              </label>
+              <label class="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 shadow-2xs cursor-pointer">
+                <span class="text-slate-700 font-medium">Washer / Dryer</span>
+                <input type="number" min="0" value="0" data-vol="30" class="item-qty w-12 text-center bg-slate-50 border border-slate-300 rounded py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500" />
+              </label>
+            </div>
+          </div>
+
+          <!-- Truck & Insurance Override -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Assigned U-Haul Truck</label>
+              <select id="truckSize" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 font-medium focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                <option value="van">9' Cargo Van ($19.95 + $0.79/km)</option>
+                <option value="10ft">10' Box Truck ($19.95 + $0.89/km)</option>
+                <option value="15ft">15' Box Truck ($29.95 + $0.99/km)</option>
+                <option value="20ft">20' Box Truck ($39.95 + $1.09/km)</option>
+                <option value="26ft">26' Box Truck ($39.95 + $1.19/km)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">SafeMove Insurance ($)</label>
+              <input type="number" id="insuranceCost" value="16" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 font-medium focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+            </div>
+          </div>
+        </section>
+
+        <!-- Step 2: Route & Crew Inputs -->
+        <section class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+          <h2 class="text-xs font-bold uppercase tracking-wider text-blue-600">2. Travel & Labor Parameters</h2>
+          
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Distance (KM)</label>
+              <input type="number" id="distanceKm" value="25" min="1" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Trip Format</label>
+              <select id="tripType" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 font-medium focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                <option value="round" selected>Round-Trip (Depot Loop)</option>
+                <option value="oneway">One-Way (Auto 2x)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-3 pt-1">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Est. Hours</label>
+              <input type="number" id="laborHours" value="3.0" step="0.5" min="0.5" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Movers</label>
+              <input type="number" id="crewSize" value="2" min="1" max="6" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Wage ($/hr/ea)</label>
+              <input type="number" id="moverWage" value="22" step="1" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+            </div>
+          </div>
+        </section>
+
+        <!-- Step 3: Intake Modifiers & Margin -->
+        <section class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+          <h2 class="text-xs font-bold uppercase tracking-wider text-blue-600">3. Job Surcharges & Margin</h2>
+          
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 mb-1">Stairs ($30/flight)</label>
+              <input type="number" id="stairsCount" value="0" min="0" max="10" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 mb-1">Heavy Item ($)</label>
+              <input type="number" id="heavyFee" value="0" step="25" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Piano/Safe" />
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 mb-1">Long Walk/Access ($)</label>
+              <input type="number" id="accessFee" value="0" step="10" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Carry/Parking" />
+            </div>
+          </div>
+
+          <div class="pt-2 border-t border-slate-100">
+            <div class="flex justify-between items-center mb-1.5">
+              <span class="text-xs font-semibold text-slate-700">Target Profit Margin</span>
+              <span id="marginLabel" class="text-xs font-bold text-blue-600">35%</span>
+            </div>
+            <input type="range" id="profitMargin" min="15" max="60" value="35" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
+          </div>
+        </section>
+
+      </div>
+
+      <!-- Right Column: Communication & Audit (5 Cols) -->
+      <div class="lg:col-span-5 space-y-5">
+        
+        <!-- SMS / Client Templates -->
+        <section class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3.5">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xs font-bold uppercase tracking-wider text-blue-600">4. Client Quotes & Templates</h2>
+            <button id="copyBtn" class="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-semibold text-xs px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+              <span>📋</span> <span id="copyBtnText">Copy Text</span>
+            </button>
+          </div>
+
+          <!-- Template Tabs -->
+          <div class="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+            <button type="button" class="tab-btn py-1.5 rounded-lg font-semibold text-white bg-blue-600 transition shadow-2xs" data-template="standard">Direct Quote</button>
+            <button type="button" class="tab-btn py-1.5 rounded-lg font-medium text-slate-600 hover:text-slate-900 transition" data-template="detailed">Breakdown</button>
+            <button type="button" class="tab-btn py-1.5 rounded-lg font-medium text-slate-600 hover:text-slate-900 transition" data-template="booking">Booking / Dep.</button>
+          </div>
+
+          <textarea id="templateOutput" rows="6" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-700 font-sans focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none leading-relaxed" readonly></textarea>
+        </section>
+
+        <!-- Detailed Expense Breakdown -->
+        <section class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-2.5 text-xs">
+          <h3 class="font-bold text-slate-800 uppercase text-[11px] tracking-wider mb-2">Itemized Cost Details</h3>
+          
+          <div class="flex justify-between py-1.5 border-b border-slate-100 text-slate-600">
+            <span>U-Haul Base Rental:</span>
+            <span id="uhaulBaseDisplay" class="font-semibold text-slate-800">$19.95</span>
+          </div>
+          <div class="flex justify-between py-1.5 border-b border-slate-100 text-slate-600">
+            <span>Mileage & Fuel:</span>
+            <span id="uhaulKmDisplay" class="font-semibold text-slate-800">$0.00</span>
+          </div>
+          <div class="flex justify-between py-1.5 border-b border-slate-100 text-slate-600">
+            <span>SafeMove + 15% NS HST:</span>
+            <span id="uhaulTaxDisplay" class="font-semibold text-slate-800">$0.00</span>
+          </div>
+          <div class="flex justify-between py-1.5 border-b border-slate-100 text-slate-700 font-medium">
+            <span>Total U-Haul Out-of-Pocket:</span>
+            <span id="uhaulTotalDisplay" class="font-bold text-rose-600">$0.00</span>
+          </div>
+          <div class="flex justify-between py-1.5 border-b border-slate-100 text-slate-700 font-medium">
+            <span>Crew Payroll (<span id="laborCalcSummary">2 movers x 3h</span>):</span>
+            <span id="laborTotalDisplay" class="font-bold text-rose-600">$0.00</span>
+          </div>
+          <div class="flex justify-between py-1.5 pt-2 text-slate-900 font-bold text-sm">
+            <span>Net Take-Home Profit:</span>
+            <span id="sideProfitDisplay" class="font-extrabold text-emerald-600">$0.00</span>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile Sticky Footer Bar -->
+  <div class="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 py-3 z-50 shadow-lg md:hidden">
+    <div class="max-w-5xl mx-auto flex items-center justify-between gap-4">
+      <div>
+        <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Recommended Quote</span>
+        <div class="flex items-baseline gap-2">
+          <span id="bottomQuoteDisplay" class="text-2xl font-black text-blue-600">$0.00</span>
+          <span id="bottomCrewSummary" class="text-[11px] text-slate-500 font-semibold">2 Movers • 10' Box</span>
+        </div>
+      </div>
+      <button id="mobileCopyBtn" class="bg-blue-600 active:bg-blue-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 shadow-md shadow-blue-500/20">
+        <span>📋</span> Copy Text
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // Presets Database
+    const presets = {
+      single: { truck: 'van', movers: 2, hours: 1.5, insurance: 16 },
+      micro:  { truck: 'van', movers: 2, hours: 2.0, insurance: 16 },
+      '1bed': { truck: '10ft', movers: 2, hours: 3.0, insurance: 16 },
+      '2bed': { truck: '15ft', movers: 2, hours: 4.5, insurance: 20 },
+      '3bed': { truck: '20ft', movers: 3, hours: 6.0, insurance: 25 },
+      '4bed': { truck: '26ft', movers: 4, hours: 7.5, insurance: 30 }
+    };
+
+    // Truck Rate Specs
+    const truckRates = {
+      van:  { base: 19.95, perKm: 0.79, fuelKm: 0.25, maxVol: 245, name: "9' Cargo Van" },
+      '10ft': { base: 19.95, perKm: 0.89, fuelKm: 0.30, maxVol: 402, name: "10' Box Truck" },
+      '15ft': { base: 29.95, perKm: 0.99, fuelKm: 0.35, maxVol: 764, name: "15' Box Truck" },
+      '20ft': { base: 39.95, perKm: 1.09, fuelKm: 0.40, maxVol: 1016, name: "20' Box Truck" },
+      '26ft': { base: 39.95, perKm: 1.19, fuelKm: 0.45, maxVol: 1682, name: "26' Box Truck" }
+    };
+
+    let activeTemplate = 'standard';
+
+    // Elements
+    const loadPreset = document.getElementById('loadPreset');
+    const modeBadge = document.getElementById('modeBadge');
+    const customItemSection = document.getElementById('customItemSection');
+    const totalVolumeDisplay = document.getElementById('totalVolumeDisplay');
+    const itemQtyInputs = document.querySelectorAll('.item-qty');
+    const truckSize = document.getElementById('truckSize');
+    const insuranceCost = document.getElementById('insuranceCost');
+    const distanceKm = document.getElementById('distanceKm');
+    const tripType = document.getElementById('tripType');
+    const laborHours = document.getElementById('laborHours');
+    const crewSize = document.getElementById('crewSize');
+    const moverWage = document.getElementById('moverWage');
+    const stairsCount = document.getElementById('stairsCount');
+    const heavyFee = document.getElementById('heavyFee');
+    const accessFee = document.getElementById('accessFee');
+    const profitMargin = document.getElementById('profitMargin');
+    const marginLabel = document.getElementById('marginLabel');
+
+    // Outputs
+    const topQuoteDisplay = document.getElementById('topQuoteDisplay');
+    const topCrewSummary = document.getElementById('topCrewSummary');
+    const topUhaulAudit = document.getElementById('topUhaulAudit');
+    const topLaborAudit = document.getElementById('topLaborAudit');
+    const topTotalCostAudit = document.getElementById('topTotalCostAudit');
+    const topProfitAudit = document.getElementById('topProfitAudit');
+    
+    const bottomQuoteDisplay = document.getElementById('bottomQuoteDisplay');
+    const bottomCrewSummary = document.getElementById('bottomCrewSummary');
+    const uhaulBaseDisplay = document.getElementById('uhaulBaseDisplay');
+    const uhaulKmDisplay = document.getElementById('uhaulKmDisplay');
+    const uhaulTaxDisplay = document.getElementById('uhaulTaxDisplay');
+    const uhaulTotalDisplay = document.getElementById('uhaulTotalDisplay');
+    const laborCalcSummary = document.getElementById('laborCalcSummary');
+    const laborTotalDisplay = document.getElementById('laborTotalDisplay');
+    const sideProfitDisplay = document.getElementById('sideProfitDisplay');
+
+    const templateOutput = document.getElementById('templateOutput');
+    const copyBtn = document.getElementById('copyBtn');
+    const copyBtnText = document.getElementById('copyBtnText');
+    const mobileCopyBtn = document.getElementById('mobileCopyBtn');
+    const tabBtns = document.querySelectorAll('.tab-btn');
+
+    // Load Selector Change
+    loadPreset.addEventListener('change', (e) => {
+      if (e.target.value === 'custom') {
+        customItemSection.classList.remove('hidden');
+        modeBadge.textContent = "Custom Itemized Mode";
+        modeBadge.className = "text-[11px] bg-amber-50 text-amber-700 border border-amber-200 px-2.5 py-0.5 rounded-full font-semibold";
+        recalculateCustomLoad();
+      } else {
+        customItemSection.classList.add('hidden');
+        modeBadge.textContent = "Preset Mode";
+        modeBadge.className = "text-[11px] bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-0.5 rounded-full font-medium";
+        const selected = presets[e.target.value];
+        if (selected) {
+          truckSize.value = selected.truck;
+          crewSize.value = selected.movers;
+          laborHours.value = selected.hours;
+          insuranceCost.value = selected.insurance;
+        }
+      }
+      calculate();
+    });
+
+    // Custom Load Recalculation
+    function recalculateCustomLoad() {
+      let totalVolume = 0;
+      itemQtyInputs.forEach(input => {
+        const qty = parseInt(input.value) || 0;
+        const vol = parseFloat(input.dataset.vol) || 0;
+        totalVolume += qty * vol;
+      });
+
+      totalVolumeDisplay.textContent = `${totalVolume} cu. ft.`;
+
+      // Match Truck & Recommended Hours based on Volume
+      if (totalVolume <= 200) {
+        truckSize.value = 'van';
+        laborHours.value = Math.max(1.5, Math.round((totalVolume / 100) * 10) / 10);
+        crewSize.value = 2;
+        insuranceCost.value = 16;
+      } else if (totalVolume <= 380) {
+        truckSize.value = '10ft';
+        laborHours.value = Math.max(2.0, Math.round((totalVolume / 120) * 10) / 10);
+        crewSize.value = 2;
+        insuranceCost.value = 16;
+      } else if (totalVolume <= 720) {
+        truckSize.value = '15ft';
+        laborHours.value = Math.max(3.5, Math.round((totalVolume / 150) * 10) / 10);
+        crewSize.value = 2;
+        insuranceCost.value = 20;
+      } else if (totalVolume <= 980) {
+        truckSize.value = '20ft';
+        laborHours.value = Math.max(5.0, Math.round((totalVolume / 170) * 10) / 10);
+        crewSize.value = 3;
+        insuranceCost.value = 25;
+      } else {
+        truckSize.value = '26ft';
+        laborHours.value = Math.max(6.5, Math.round((totalVolume / 180) * 10) / 10);
+        crewSize.value = 4;
+        insuranceCost.value = 30;
+      }
+    }
+
+    itemQtyInputs.forEach(input => {
+      input.addEventListener('input', () => {
+        if (loadPreset.value === 'custom') {
+          recalculateCustomLoad();
+          calculate();
+        }
+      });
+    });
+
+    // Slider
+    profitMargin.addEventListener('input', (e) => {
+      marginLabel.textContent = `${e.target.value}%`;
+      calculate();
+    });
+
+    // Template Selector
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        tabBtns.forEach(b => {
+          b.classList.remove('bg-blue-600', 'text-white', 'font-semibold', 'shadow-2xs');
+          b.classList.add('text-slate-600', 'font-medium');
+        });
+        btn.classList.add('bg-blue-600', 'text-white', 'font-semibold', 'shadow-2xs');
+        btn.classList.remove('text-slate-600', 'font-medium');
+        activeTemplate = btn.dataset.template;
+        calculate();
+      });
+    });
+
+    // Event listeners
+    [truckSize, insuranceCost, distanceKm, tripType, laborHours, crewSize, moverWage, stairsCount, heavyFee, accessFee].forEach(el => {
+      el.addEventListener('input', calculate);
+      el.addEventListener('change', calculate);
+    });
+
+    function calculate() {
+      const truck = truckRates[truckSize.value];
+      const rawKm = parseFloat(distanceKm.value) || 0;
+      const totalKm = tripType.value === 'round' ? rawKm : rawKm * 2;
+      const hours = parseFloat(laborHours.value) || 0;
+      const movers = parseInt(crewSize.value) || 1;
+      const wage = parseFloat(moverWage.value) || 0;
+      const insurance = parseFloat(insuranceCost.value) || 0;
+      const stairs = (parseInt(stairsCount.value) || 0) * 30;
+      const heavy = parseFloat(heavyFee.value) || 0;
+      const access = parseFloat(accessFee.value) || 0;
+      const totalSurcharges = stairs + heavy + access;
+      const margin = (parseFloat(profitMargin.value) || 0) / 100;
+
+      // 1. Truck Expenses
+      const uhaulKmFee = totalKm * truck.perKm;
+      const uhaulFuel = totalKm * truck.fuelKm;
+      const uhaulPreTax = truck.base + uhaulKmFee + insurance;
+      const uhaulTax = uhaulPreTax * 0.15; // 15% NS HST
+      const totalUhaulCost = uhaulPreTax + uhaulTax + uhaulFuel;
+
+      // 2. Labor Expenses
+      const totalLaborCost = movers * hours * wage;
+
+      // 3. Total Operational Hard Cost
+      const totalDirectCost = totalUhaulCost + totalLaborCost;
+
+      // 4. Quote Calculation with Margin
+      const baseQuote = totalDirectCost / (1 - margin);
+      const finalQuote = Math.ceil((baseQuote + totalSurcharges) / 5) * 5;
+      const netProfit = finalQuote - totalDirectCost;
+
+      // Render Displays
+      topQuoteDisplay.textContent = `$${finalQuote.toFixed(2)}`;
+      bottomQuoteDisplay.textContent = `$${finalQuote.toFixed(2)}`;
+
+      const crewString = `${movers} Mover${movers > 1 ? 's' : ''} • ${truck.name}`;
+      topCrewSummary.textContent = crewString;
+      bottomCrewSummary.textContent = crewString;
+
+      topUhaulAudit.textContent = `$${totalUhaulCost.toFixed(2)}`;
+      topLaborAudit.textContent = `$${totalLaborCost.toFixed(2)}`;
+      topTotalCostAudit.textContent = `$${totalDirectCost.toFixed(2)}`;
+      topProfitAudit.textContent = `$${netProfit.toFixed(2)}`;
+      sideProfitDisplay.textContent = `$${netProfit.toFixed(2)}`;
+
+      uhaulBaseDisplay.textContent = `$${truck.base.toFixed(2)}`;
+      uhaulKmDisplay.textContent = `$${(uhaulKmFee + uhaulFuel).toFixed(2)} (${totalKm} km)`;
+      uhaulTaxDisplay.textContent = `$${(insurance + uhaulTax).toFixed(2)}`;
+      uhaulTotalDisplay.textContent = `$${totalUhaulCost.toFixed(2)}`;
+      
+      laborCalcSummary.textContent = `${movers} movers × ${hours}h @ $${wage}/h`;
+      laborTotalDisplay.textContent = `$${totalLaborCost.toFixed(2)}`;
+
+      // Message Templates
+      updateTemplates(finalQuote, movers, truck.name, hours, totalKm);
+    }
+
+    function updateTemplates(price, movers, truckName, hours, km) {
+      if (activeTemplate === 'standard') {
+        templateOutput.value = `Hi there! Based on your move details, your quote is $${price.toFixed(2)} (all-inclusive: equipment, fuel, and taxes included).\n\nThis includes our ${truckName}, a professional ${movers}-mover crew, and up to ~${hours} hours of dedicated service in HRM. Let us know if you'd like to reserve this slot!`;
+      } else if (activeTemplate === 'detailed') {
+        templateOutput.value = `Hello! Here is the itemized quote for your upcoming move:\n\n• Team: ${movers} Professional Movers + Dedicated ${truckName}\n• Duration: Estimated ${hours} hours total service\n• Distance: Up to ${km} km coverage (including depot)\n• All-Inclusive Total: $${price.toFixed(2)} (Includes truck rental, mileage, fuel, and 15% NS HST)\n\nNo surprise fees on moving day. Reply to lock in your date!`;
+      } else if (activeTemplate === 'booking') {
+        templateOutput.value = `Thanks for confirming! We have your move scheduled for [Date & Time].\n\n• Rate: $${price.toFixed(2)} all-inclusive (${movers} movers + ${truckName})\n• Estimated Time: ~${hours} hrs\n\nTo secure your dispatch truck and crew, please send a $50 e-Transfer deposit to [Your Email/Phone]. The remaining balance is payable upon completion on moving day.`;
+      }
+    }
+
+    function handleCopy() {
+      templateOutput.select();
+      navigator.clipboard.writeText(templateOutput.value);
+      copyBtnText.textContent = 'Copied!';
+      mobileCopyBtn.innerHTML = '<span>✅</span> Copied!';
+      setTimeout(() => {
+        copyBtnText.textContent = 'Copy Text';
+        mobileCopyBtn.innerHTML = '<span>📋</span> Copy Text';
+      }, 2000);
+    }
+
+    copyBtn.addEventListener('click', handleCopy);
+    mobileCopyBtn.addEventListener('click', handleCopy);
+
+    // Initial Execution
+    calculate();
+  </script>
+</body>
+</html>
