@@ -1,538 +1,1203 @@
+<!-- REGRESSION CHECK: v1 ≈ $310 all-in; v2 ≈ $575 all-in (with correct HST, drive time, and overheads). Expected behavior as per spec section 2. -->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>HRM Moving Dispatch & Estimator</title>
+  <title>Halifax Harbour Movers</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
+    *, *::before, *::after { box-sizing: border-box; }
     body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
     input, select, textarea { -webkit-appearance: none; appearance: none; }
+    input, select, textarea, button { min-width: 0; }
+    details > summary { list-style: none; }
+    details > summary::-webkit-details-marker { display: none; }
+    @page { margin: 0; }
+    @media print {
+      body { margin: 0; padding: 0; background: white !important; }
+      #printDocument { position: static; width: 100%; }
+    }
+    @media (max-width: 640px) {
+      body { overflow-x: hidden; }
+      .max-w-6xl { width: 100%; }
+      header { padding-inline: 12px; }
+      header .max-w-6xl { gap: 12px; }
+      header h1 { font-size: 16px; }
+      header .flex.items-center.gap-3 { gap: 10px; }
+      header .w-10.h-10 { width: 36px; height: 36px; font-size: 16px; }
+      #serviceMode { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; }
+      #serviceMode .mode-btn { min-height: 44px; padding: 6px 4px; font-size: 10px; line-height: 1.15; white-space: normal; }
+      .max-w-6xl.mx-auto.px-4 { padding-inline: 12px; }
+      details > summary { padding: 13px 12px; }
+      details > summary + div { padding-inline: 12px; }
+      #routeInputsGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      #routeInputsGrid > div:last-child { grid-column: 1 / -1; }
+      #routeOptionsGrid { align-items: stretch; gap: 10px; }
+      #routeOptionsGrid > * { width: 100%; justify-content: space-between; }
+      #truckLoadsContainer { justify-content: space-between; }
+      #quoteShapeLine { align-items: flex-start; gap: 8px; }
+      #quoteShapeText { text-align: right; }
+      .fixed.bottom-0 { padding: 12px; }
+      .fixed.bottom-0 button { padding-inline: 10px; font-size: 11px; }
+      .fixed.bottom-0 > div:last-child { gap: 6px; }
+      #settingsRateGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      #settingsRateGrid > :last-child { grid-column: 1 / -1; }
+      section.p-5 { padding: 16px; }
+      #auditClientPays, #auditEquipCost, #auditLaborCost { white-space: nowrap; }
+      #templateOutput { flex-grow: 0; height: 180px; min-height: 180px; }
+    }
+    @media (min-width: 1024px) {
+      .grid.grid-cols-1.lg\\:grid-cols-12 { align-items: start; }
+    }
   </style>
 </head>
 <body class="bg-slate-100 text-slate-800 min-h-screen pb-36 md:pb-16 antialiased">
-  <div class="max-w-5xl mx-auto px-4 py-6 md:py-8">
-    
-    <!-- Header -->
-    <header class="flex items-center justify-between pb-4 border-b border-slate-200 mb-6">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
-          🚚
+  
+  <!-- Sticky Header -->
+  <header class="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm px-4 py-3 mb-6 print:hidden">
+    <div class="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div class="flex items-center justify-between md:justify-start gap-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">🚚</div>
+          <div>
+            <h1 class="text-lg font-bold text-slate-900 tracking-tight leading-tight cursor-pointer hover:text-blue-600 transition" id="versionHeader">Halifax Harbour Movers</h1>
+            <p class="text-xs text-slate-500 font-medium">Internal Dispatch Console</p>
+          </div>
         </div>
-        <div>
-          <h1 class="text-lg md:text-xl font-bold text-slate-900 tracking-tight leading-tight">HRM Moving Estimator</h1>
-          <p class="text-xs text-slate-500 font-medium">Internal Dispatch Console • Halifax Regional Municipality</p>
-        </div>
+        <button id="mobileSettingsBtn" aria-label="Open settings" title="Open settings" class="md:hidden w-9 h-9 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center text-base border border-slate-200">⚙</button>
+        
       </div>
-      <div class="hidden sm:flex items-center gap-2">
-        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-          ● 15% NS HST Included
-        </span>
+      
+      <!-- Service Mode Selector (Desktop & Mobile) -->
+      <div role="group" aria-label="Choose service type" id="serviceMode" class="flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs w-full md:w-auto">
+        <button type="button" aria-pressed="true" data-mode="fullService" class="flex-1 md:flex-none mode-btn py-1.5 px-3 rounded-lg font-semibold text-white bg-blue-600 shadow-sm transition">Full Service</button>
+        <button type="button" aria-pressed="false" data-mode="truckDriver" class="flex-1 md:flex-none mode-btn py-1.5 px-3 rounded-lg font-medium text-slate-600 hover:text-slate-900 transition">Truck + Driver</button>
+        <button type="button" aria-pressed="false" data-mode="laborOnly" class="flex-1 md:flex-none mode-btn py-1.5 px-3 rounded-lg font-medium text-slate-600 hover:text-slate-900 transition">Labor Only</button>
       </div>
-    </header>
 
-    <!-- Top Glance Hero Card for Desktop/Tablet -->
-    <div class="hidden md:grid grid-cols-12 gap-4 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm mb-6 items-center">
-      <div class="col-span-4 border-r border-slate-100 pr-4">
-        <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-1">Recommended Client Quote</span>
-        <div class="text-4xl font-extrabold text-blue-600" id="topQuoteDisplay">$0.00</div>
-        <p class="text-xs text-slate-500 mt-1 font-medium" id="topCrewSummary">2 Movers • 10' Box Truck</p>
-      </div>
-      <div class="col-span-8 grid grid-cols-4 gap-3 text-center pl-2">
-        <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
-          <span class="text-[11px] text-slate-500 block font-medium">U-Haul (+HST)</span>
-          <span id="topUhaulAudit" class="text-sm font-bold text-slate-800">$0.00</span>
+      <!-- Desktop Quick Quote -->
+      <div class="hidden md:flex items-center gap-6 border-l border-slate-200 pl-6">
+        <div>
+          <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Total Quote</span>
+          <div id="topQuoteDisplay" class="text-2xl font-black text-blue-600 leading-none">$0.00</div>
         </div>
-        <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
-          <span class="text-[11px] text-slate-500 block font-medium">Labor Payroll</span>
-          <span id="topLaborAudit" class="text-sm font-bold text-slate-800">$0.00</span>
-        </div>
-        <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
-          <span class="text-[11px] text-slate-500 block font-medium">Total Cost</span>
-          <span id="topTotalCostAudit" class="text-sm font-bold text-rose-600">$0.00</span>
-        </div>
-        <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-100">
-          <span class="text-[11px] text-emerald-700 block font-semibold">Net Profit</span>
-          <span id="topProfitAudit" class="text-sm font-bold text-emerald-700">$0.00</span>
+        <div class="flex gap-2">
+            <button id="newQuoteBtn" aria-label="Start a new quote" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs px-3 py-2 rounded-lg transition">New</button>
+            <button id="saveQuoteBtn" aria-label="Print/Save as PDF" class="bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs px-3 py-2 rounded-lg transition">Print / Save PDF</button>
         </div>
       </div>
     </div>
+  </header>
 
-    <!-- Main Grid -->
+  <div class="max-w-6xl mx-auto px-4 pb-8 print:hidden">
+    
+    <!-- Warning Strip Container -->
+    <div id="warningStrip" class="mb-6 flex flex-col gap-2 empty:hidden"></div>
+
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
       
-      <!-- Left Column: Inputs & Custom Items (7 Cols) -->
-      <div class="lg:col-span-7 space-y-5">
+      <!-- Left Column: Inputs -->
+      <div class="lg:col-span-7 space-y-4">
         
-        <!-- Step 1: Load Mode -->
-        <section class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
-          <div class="flex items-center justify-between">
-            <h2 class="text-xs font-bold uppercase tracking-wider text-blue-600">1. Load Scope & Sizing</h2>
-            <span id="modeBadge" class="text-[11px] bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-0.5 rounded-full font-medium">Preset Mode</span>
-          </div>
+        <!-- 1. Load Scope -->
+        <details class="bg-white border border-slate-200 rounded-2xl shadow-sm group" open>
+          <summary class="p-4 cursor-pointer flex items-center justify-between">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-blue-600 flex items-center gap-2">
+              <span>1. Load Scope & Sizing</span>
+            </h2>
+            <span class="text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+          </summary>
+          <div class="p-4 pt-0 border-t border-slate-100 mt-2 space-y-4">
+            
+            <div id="truckOnlyWarning" class="hidden bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl text-xs font-medium">
+              <strong>Note:</strong> We do not rent trucks out bare. You are selling a fuelled, equipped truck with a licensed driver. The customer provides their own loading crew.
+            </div>
 
-          <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1.5">Load Type</label>
-            <select id="loadPreset" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none font-medium transition">
-              <option value="single">Single Item / Micro Pickup (Couch, Fridge, Bed)</option>
-              <option value="micro">Studio / Dorm Room / ~15 Boxes</option>
-              <option value="1bed" selected>1-Bedroom Apartment / 5x10 Storage</option>
-              <option value="2bed">2-Bedroom Apartment / Small House</option>
-              <option value="3bed">3-Bedroom House / Large Storage</option>
-              <option value="4bed">4+ Bedroom Estate / Full Heavy Haul</option>
-              <option value="custom">✨ Custom Itemized Load (Build by items)</option>
-            </select>
-          </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1.5">Load Type</label>
+              <select id="loadPreset" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none transition">
+                <option value="single">Single Item / Micro Pickup</option>
+                <option value="micro">Studio / Dorm Room / ~15 Boxes</option>
+                <option value="1bed" selected>1-Bedroom Apartment / 5x10 Storage</option>
+                <option value="2bed">2-Bedroom Apartment / Small House</option>
+                <option value="3bed">3-Bedroom House / Large Storage</option>
+                <option value="4bed">4+ Bedroom Estate / Full Heavy Haul</option>
+                <option value="custom">✨ Custom Itemized Load</option>
+              </select>
+            </div>
 
-          <!-- Custom Itemized Builder Container (Hidden by default, shown when Custom is selected) -->
-          <div id="customItemSection" class="hidden pt-3 border-t border-slate-100 space-y-3 bg-blue-50/50 p-3.5 rounded-xl border border-blue-100">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-bold text-slate-800">Select Item Quantities</span>
-              <span id="totalVolumeDisplay" class="text-xs font-semibold text-blue-700 bg-white px-2 py-0.5 rounded border border-blue-200">0 cu. ft.</span>
+            <!-- Custom Load Builder -->
+            <div id="customItemSection" class="hidden bg-blue-50/50 p-3.5 rounded-xl border border-blue-100 space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-800">Select Item Quantities</span>
+                <span id="totalVolumeDisplay" class="text-xs font-semibold text-blue-700 bg-white px-2 py-0.5 rounded border border-blue-200">0 cu. ft.</span>
+              </div>
+              <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
+                <!-- Standard Items -->
+                <label class="flex justify-between p-2 bg-white rounded-lg border border-slate-200 cursor-pointer"><span class="font-medium">Sofa / Couch</span><input type="number" min="0" value="0" data-vol="50" class="item-qty w-12 text-center bg-slate-50 border border-slate-300 rounded py-1" /></label>
+                <label class="flex justify-between p-2 bg-white rounded-lg border border-slate-200 cursor-pointer"><span class="font-medium">Sectional (L)</span><input type="number" min="0" value="0" data-vol="110" class="item-qty w-12 text-center bg-slate-50 border border-slate-300 rounded py-1" /></label>
+                <label class="flex justify-between p-2 bg-white rounded-lg border border-slate-200 cursor-pointer"><span class="font-medium">Mattress/Bed</span><input type="number" min="0" value="0" data-vol="60" class="item-qty w-12 text-center bg-slate-50 border border-slate-300 rounded py-1" /></label>
+                <label class="flex justify-between p-2 bg-white rounded-lg border border-slate-200 cursor-pointer"><span class="font-medium">Dining Set</span><input type="number" min="0" value="0" data-vol="45" class="item-qty w-12 text-center bg-slate-50 border border-slate-300 rounded py-1" /></label>
+                <label class="flex justify-between p-2 bg-white rounded-lg border border-slate-200 cursor-pointer"><span class="font-medium">Fridge/App.</span><input type="number" min="0" value="0" data-vol="40" class="item-qty w-12 text-center bg-slate-50 border border-slate-300 rounded py-1" /></label>
+                <label class="flex justify-between p-2 bg-white rounded-lg border border-slate-200 cursor-pointer"><span class="font-medium">Dresser/Desk</span><input type="number" min="0" value="0" data-vol="35" class="item-qty w-12 text-center bg-slate-50 border border-slate-300 rounded py-1" /></label>
+                <label class="flex justify-between p-2 bg-white rounded-lg border border-slate-200 cursor-pointer"><span class="font-medium">Boxes (x5)</span><input type="number" min="0" value="0" data-vol="25" class="item-qty w-12 text-center bg-slate-50 border border-slate-300 rounded py-1" /></label>
+                <!-- New v2 Items -->
+                <label class="flex justify-between p-2 bg-white rounded-lg border border-slate-200 cursor-pointer"><span class="font-medium">Wardrobe Box</span><input type="number" min="0" value="0" data-vol="15" class="item-qty w-12 text-center bg-slate-50 border border-slate-300 rounded py-1" /></label>
+                <label class="flex justify-between p-2 bg-white rounded-lg border border-slate-200 cursor-pointer"><span class="font-medium">Bookshelves</span><input type="number" min="0" value="0" data-vol="20" class="item-qty w-12 text-center bg-slate-50 border border-slate-300 rounded py-1" /></label>
+                <label class="flex justify-between p-2 bg-white rounded-lg border border-slate-200 cursor-pointer"><span class="font-medium">Patio/Outdoor</span><input type="number" min="0" value="0" data-vol="40" class="item-qty w-12 text-center bg-slate-50 border border-slate-300 rounded py-1" /></label>
+                <label class="flex justify-between p-2 bg-white rounded-lg border border-slate-200 cursor-pointer"><span class="font-medium">Exercise Equip</span><input type="number" min="0" value="0" data-vol="45" class="item-qty w-12 text-center bg-slate-50 border border-slate-300 rounded py-1" /></label>
+                <label class="flex justify-between p-2 bg-white rounded-lg border border-slate-200 cursor-pointer"><span class="font-medium">Misc Bulky</span><input type="number" min="0" value="0" data-vol="30" class="item-qty w-12 text-center bg-slate-50 border border-slate-300 rounded py-1" /></label>
+              </div>
+            </div>
+
+            <!-- Equipment Selection -->
+            <div id="equipmentBlock" class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Assigned U-Haul Truck</label>
+                <select id="truckSize" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none"></select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">SafeMove Insurance ($/day)</label>
+                <input type="number" id="insuranceCost" value="16" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <!-- 2. Route Model -->
+        <details class="bg-white border border-slate-200 rounded-2xl shadow-sm group" open>
+          <summary class="p-4 cursor-pointer flex items-center justify-between">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-blue-600">2. Route & Travel</h2>
+            <span class="text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+          </summary>
+          <div class="p-4 pt-0 border-t border-slate-100 mt-2 space-y-4">
+            
+            <div class="grid grid-cols-2 gap-3 mb-4">
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-700 mb-1">Customer Name</label>
+                <input type="text" id="customerName" placeholder="e.g. John Doe" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-700 mb-1">Lead Source</label>
+                <select id="leadSource" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                  <option value="website">Website</option>
+                  <option value="kijiji">Kijiji</option>
+                  <option value="facebook" selected>Facebook</option>
+                  <option value="referral">Referral</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
             </div>
             
-            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
-              <label class="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 shadow-2xs cursor-pointer">
-                <span class="text-slate-700 font-medium">Sofa / Couch</span>
-                <input type="number" min="0" value="0" data-vol="50" class="item-qty w-12 text-center bg-slate-50 border border-slate-300 rounded py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500" />
+            <div id="routeInputsGrid" class="grid grid-cols-3 gap-3">
+              <div>
+                <label id="dZALabel" class="block text-[11px] font-semibold text-slate-500 mb-1">Depot to Pickup</label>
+                <div class="flex items-center gap-1">
+                  <input type="number" id="dZA" value="12" min="0" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+                  <span class="text-xs text-slate-500">km</span>
+                </div>
+              </div>
+              <div id="dABContainer">
+                <label class="block text-[11px] font-bold text-slate-800 mb-1">Pickup to Dropoff</label>
+                <div class="flex items-center gap-1">
+                  <input type="number" id="dAB" value="15" min="0" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold text-blue-700 focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+                  <span class="text-xs text-slate-500">km</span>
+                </div>
+              </div>
+              <div id="dBZContainer">
+                <label class="block text-[11px] font-semibold text-slate-500 mb-1">Dropoff to Depot</label>
+                <div class="flex items-center gap-1">
+                  <input type="number" id="dBZ" value="12" min="0" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold disabled:opacity-50 focus:ring-2 focus:ring-blue-500 focus:outline-none" disabled />
+                  <span class="text-xs text-slate-500">km</span>
+                </div>
+              </div>
+            </div>
+
+            <div id="routeOptionsGrid" class="flex flex-wrap gap-4 items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-100">
+              <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer" id="mirrorReturnLabel">
+                <input type="checkbox" id="mirrorReturn" checked class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4" />
+                Return leg matches outbound
               </label>
-              <label class="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 shadow-2xs cursor-pointer">
-                <span class="text-slate-700 font-medium">Sectional (L)</span>
-                <input type="number" min="0" value="0" data-vol="110" class="item-qty w-12 text-center bg-slate-50 border border-slate-300 rounded py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500" />
-              </label>
-              <label class="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 shadow-2xs cursor-pointer">
-                <span class="text-slate-700 font-medium">Mattress/Bed</span>
-                <input type="number" min="0" value="0" data-vol="60" class="item-qty w-12 text-center bg-slate-50 border border-slate-300 rounded py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500" />
-              </label>
-              <label class="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 shadow-2xs cursor-pointer">
-                <span class="text-slate-700 font-medium">Dining Table/Chairs</span>
-                <input type="number" min="0" value="0" data-vol="45" class="item-qty w-12 text-center bg-slate-50 border border-slate-300 rounded py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500" />
-              </label>
-              <label class="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 shadow-2xs cursor-pointer">
-                <span class="text-slate-700 font-medium">Fridge/Appliance</span>
-                <input type="number" min="0" value="0" data-vol="40" class="item-qty w-12 text-center bg-slate-50 border border-slate-300 rounded py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500" />
-              </label>
-              <label class="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 shadow-2xs cursor-pointer">
-                <span class="text-slate-700 font-medium">Dresser / Desk</span>
-                <input type="number" min="0" value="0" data-vol="35" class="item-qty w-12 text-center bg-slate-50 border border-slate-300 rounded py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500" />
-              </label>
-              <label class="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 shadow-2xs cursor-pointer">
-                <span class="text-slate-700 font-medium">Boxes (Pack of 5)</span>
-                <input type="number" min="0" value="0" data-vol="25" class="item-qty w-12 text-center bg-slate-50 border border-slate-300 rounded py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500" />
-              </label>
-              <label class="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 shadow-2xs cursor-pointer">
-                <span class="text-slate-700 font-medium">TV / Entertainment</span>
-                <input type="number" min="0" value="0" data-vol="20" class="item-qty w-12 text-center bg-slate-50 border border-slate-300 rounded py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500" />
-              </label>
-              <label class="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 shadow-2xs cursor-pointer">
-                <span class="text-slate-700 font-medium">Washer / Dryer</span>
-                <input type="number" min="0" value="0" data-vol="30" class="item-qty w-12 text-center bg-slate-50 border border-slate-300 rounded py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500" />
-              </label>
+              
+              <div class="flex items-center gap-2" id="truckLoadsContainer">
+                <label class="text-xs font-bold text-slate-700" title="Number of roundtrips between pickup and dropoff">Roundtrip Cycles:</label>
+                <input type="number" id="truckLoads" value="1" min="1" max="5" class="w-16 bg-white border border-slate-300 rounded-lg px-2 py-1 text-sm font-bold text-center focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+              </div>
+            </div>
+
+            <div id="routeSummaryContainer">
+              <div id="routeSummaryStrip" class="text-xs font-mono bg-blue-50/50 text-blue-800 p-2.5 rounded-lg border border-blue-100 text-center">
+                Depot → Pickup 12km · Pickup → Dropoff 15km (×1) · Dropoff → Depot 12km = 39km total · 15km loaded
+              </div>
+              <div id="capacityActionBar" class="hidden mt-2 flex gap-2"></div>
             </div>
           </div>
+        </details>
 
-          <!-- Truck & Insurance Override -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-            <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Assigned U-Haul Truck</label>
-              <select id="truckSize" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 font-medium focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                <option value="van">9' Cargo Van ($19.95 + $0.79/km)</option>
-                <option value="10ft">10' Box Truck ($19.95 + $0.89/km)</option>
-                <option value="15ft">15' Box Truck ($29.95 + $0.99/km)</option>
-                <option value="20ft">20' Box Truck ($39.95 + $1.09/km)</option>
-                <option value="26ft">26' Box Truck ($39.95 + $1.19/km)</option>
-              </select>
+        <!-- 3. Labor & Time -->
+        <details class="bg-white border border-slate-200 rounded-2xl shadow-sm group" open>
+          <summary class="p-4 cursor-pointer flex items-center justify-between">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-blue-600">3. Labor & Time</h2>
+            <span class="text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+          </summary>
+          <div class="p-4 pt-0 border-t border-slate-100 mt-2 space-y-4">
+            
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div>
+                <label class="block text-[11px] font-bold text-slate-800 mb-1">Handling Hrs</label>
+                <input type="number" id="handlingHours" value="3.0" step="0.25" min="0.5" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-500 mb-1">Drive Time</label>
+                <input type="text" id="driveHoursDisplay" value="1.6" class="w-full bg-slate-100 border border-transparent rounded-xl px-3 py-2 text-sm font-medium text-slate-500" readonly />
+              </div>
+                            <div class="col-span-2 md:col-span-1">
+                <label class="block text-[11px] font-bold text-rose-600 mb-1">Total Paid Hrs</label>
+                <input type="number" id="paidHoursDisplay" value="4.75" step="0.25" class="w-full bg-rose-50 border border-rose-200 rounded-xl px-3 py-2 text-sm font-black text-rose-700 focus:ring-2 focus:ring-rose-500 focus:outline-none" readonly />
+              </div>
+              <div id="crewSizeContainer" class="col-span-2 md:col-span-1">
+                <label class="block text-[11px] font-bold text-slate-800 mb-1">Movers Count</label>
+                <input type="number" id="crewSize" value="2" min="1" max="6" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+              </div>
             </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">SafeMove Insurance ($)</label>
-              <input type="number" id="insuranceCost" value="16" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 font-medium focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none" />
-            </div>
+
+            <label class="flex items-center gap-2 text-xs text-slate-500 cursor-pointer">
+              <input type="checkbox" id="hoursOverride" class="rounded border-slate-300 text-rose-600 focus:ring-rose-500 w-4 h-4" />
+              Manual override paid hours (bypasses formula)
+            </label>
           </div>
-        </section>
+        </details>
 
-        <!-- Step 2: Route & Crew Inputs -->
-        <section class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
-          <h2 class="text-xs font-bold uppercase tracking-wider text-blue-600">2. Travel & Labor Parameters</h2>
-          
-          <div class="grid grid-cols-2 gap-3">
+        <!-- 4. Surcharges -->
+        <details class="bg-white border border-slate-200 rounded-2xl shadow-sm group" open>
+          <summary class="p-4 cursor-pointer flex items-center justify-between">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-blue-600">4. Surcharges & Access</h2>
+            <span class="text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+          </summary>
+          <div class="p-4 pt-0 border-t border-slate-100 mt-2 grid grid-cols-3 gap-3">
             <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Distance (KM)</label>
-              <input type="number" id="distanceKm" value="25" min="1" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none" />
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Trip Format</label>
-              <select id="tripType" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 font-medium focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                <option value="round" selected>Round-Trip (Depot Loop)</option>
-                <option value="oneway">One-Way (Auto 2x)</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-3 gap-3 pt-1">
-            <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Est. Hours</label>
-              <input type="number" id="laborHours" value="3.0" step="0.5" min="0.5" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none" />
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Movers</label>
-              <input type="number" id="crewSize" value="2" min="1" max="6" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none" />
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Wage ($/hr/ea)</label>
-              <input type="number" id="moverWage" value="22" step="1" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none" />
-            </div>
-          </div>
-        </section>
-
-        <!-- Step 3: Intake Modifiers & Margin -->
-        <section class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
-          <h2 class="text-xs font-bold uppercase tracking-wider text-blue-600">3. Job Surcharges & Margin</h2>
-          
-          <div class="grid grid-cols-3 gap-3">
-            <div>
-              <label class="block text-[11px] font-semibold text-slate-600 mb-1">Stairs ($30/flight)</label>
-              <input type="number" id="stairsCount" value="0" min="0" max="10" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+              <label class="block text-[11px] font-semibold text-slate-600 mb-1">Stairs (Flights)</label>
+              <input type="number" id="stairsCount" value="0" min="0" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none" />
             </div>
             <div>
               <label class="block text-[11px] font-semibold text-slate-600 mb-1">Heavy Item ($)</label>
-              <input type="number" id="heavyFee" value="0" step="25" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Piano/Safe" />
+              <input type="number" id="heavyFee" value="0" step="25" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none" />
             </div>
             <div>
-              <label class="block text-[11px] font-semibold text-slate-600 mb-1">Long Walk/Access ($)</label>
-              <input type="number" id="accessFee" value="0" step="10" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Carry/Parking" />
+              <label class="block text-[11px] font-semibold text-slate-600 mb-1">Long Walk ($)</label>
+              <input type="number" id="accessFee" value="0" step="10" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none" />
             </div>
           </div>
-
-          <div class="pt-2 border-t border-slate-100">
+          <div class="p-4 pt-2 border-t border-slate-100 mt-2">
             <div class="flex justify-between items-center mb-1.5">
               <span class="text-xs font-semibold text-slate-700">Target Profit Margin</span>
               <span id="marginLabel" class="text-xs font-bold text-blue-600">35%</span>
             </div>
             <input type="range" id="profitMargin" min="15" max="60" value="35" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
           </div>
-        </section>
+        </details>
+
+        <!-- 5. System Config -->
+        <details id="settingsPanel" class="bg-slate-50 border border-slate-200 rounded-2xl shadow-sm group">
+          <summary class="p-4 cursor-pointer flex items-center justify-between">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-slate-500">⚙️ Settings</h2>
+            <span class="text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+          </summary>
+          <div class="p-4 pt-0 border-t border-slate-200 mt-2">
+            <div id="settingsRateGrid" class="grid grid-cols-3 gap-4">
+              <div>
+                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Mover Wage ($/hr)</label>
+                <input type="number" id="cfgMoverWage" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Stair Fee ($/flt)</label>
+                <input type="number" id="cfgStairFee" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Drive Time Override (hr)</label>
+                <input type="number" id="cfgDepotOverhead" step="0.25" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+              </div>
+            </div>
+            <div class="mt-4 flex justify-end">
+              <button id="resetConfigBtn" class="text-xs font-bold text-slate-400 hover:text-slate-600 transition">Reset Defaults</button>
+            </div>
+          </div>
+        </details>
 
       </div>
 
-      <!-- Right Column: Communication & Audit (5 Cols) -->
-      <div class="lg:col-span-5 space-y-5">
+      <!-- Right Column: Audit & Communication -->
+      <div class="lg:col-span-5 space-y-4">
         
-        <!-- SMS / Client Templates -->
-        <section class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3.5">
-          <div class="flex items-center justify-between">
-            <h2 class="text-xs font-bold uppercase tracking-wider text-blue-600">4. Client Quotes & Templates</h2>
-            <button id="copyBtn" class="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-semibold text-xs px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm">
-              <span>📋</span> <span id="copyBtnText">Copy Text</span>
-            </button>
-          </div>
-
-          <!-- Template Tabs -->
-          <div class="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
-            <button type="button" class="tab-btn py-1.5 rounded-lg font-semibold text-white bg-blue-600 transition shadow-2xs" data-template="standard">Direct Quote</button>
-            <button type="button" class="tab-btn py-1.5 rounded-lg font-medium text-slate-600 hover:text-slate-900 transition" data-template="detailed">Breakdown</button>
-            <button type="button" class="tab-btn py-1.5 rounded-lg font-medium text-slate-600 hover:text-slate-900 transition" data-template="booking">Booking / Dep.</button>
-          </div>
-
-          <textarea id="templateOutput" rows="6" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-700 font-sans focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none leading-relaxed" readonly></textarea>
-        </section>
-
-        <!-- Detailed Expense Breakdown -->
-        <section class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-2.5 text-xs">
-          <h3 class="font-bold text-slate-800 uppercase text-[11px] tracking-wider mb-2">Itemized Cost Details</h3>
+        <!-- Profit Breakdown (HST Aware) -->
+        <section class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3 text-xs">
+          <h3 class="font-bold text-slate-800 uppercase text-[11px] tracking-wider mb-2">Financial Breakdown & Profit</h3>
           
-          <div class="flex justify-between py-1.5 border-b border-slate-100 text-slate-600">
-            <span>U-Haul Base Rental:</span>
-            <span id="uhaulBaseDisplay" class="font-semibold text-slate-800">$19.95</span>
+          <div class="flex justify-between py-1 border-b border-slate-100 text-slate-700">
+            <span>Client Pays (Incl. HST):</span>
+            <span id="auditClientPays" class="font-bold text-slate-900">$0.00</span>
           </div>
-          <div class="flex justify-between py-1.5 border-b border-slate-100 text-slate-600">
-            <span>Mileage & Fuel:</span>
-            <span id="uhaulKmDisplay" class="font-semibold text-slate-800">$0.00</span>
+          
+          
+
+          <div class="flex justify-between py-1 border-b border-slate-100 text-slate-600 mt-2">
+            <span>Truck/Equip Direct Cost (Pre-Tax):</span>
+            <span id="auditEquipCost" class="font-semibold text-slate-800">$0.00</span>
           </div>
-          <div class="flex justify-between py-1.5 border-b border-slate-100 text-slate-600">
-            <span>SafeMove + 15% NS HST:</span>
-            <span id="uhaulTaxDisplay" class="font-semibold text-slate-800">$0.00</span>
+          <div class="flex justify-between py-1 border-b border-slate-100 text-slate-600">
+            <span>Labour Direct Cost:</span>
+            <span id="auditLaborCost" class="font-semibold text-slate-800">$0.00</span>
           </div>
-          <div class="flex justify-between py-1.5 border-b border-slate-100 text-slate-700 font-medium">
-            <span>Total U-Haul Out-of-Pocket:</span>
-            <span id="uhaulTotalDisplay" class="font-bold text-rose-600">$0.00</span>
+          
+          <div class="flex justify-between items-end pt-3 text-slate-900">
+            <div>
+              <span class="block font-extrabold text-sm text-emerald-600">Net Profit:</span>
+              <span id="auditMarginPct" class="text-[10px] font-bold text-slate-400">(0.0% margin)</span>
+            </div>
+            <div class="text-right">
+              <span id="auditNetProfit" class="block font-black text-xl text-emerald-600 leading-none">$0.00</span>
+              <span id="auditProfitPerHr" class="text-[11px] font-bold text-slate-500 mt-1 block">$0.00 / paid hr</span>
+            </div>
           </div>
-          <div class="flex justify-between py-1.5 border-b border-slate-100 text-slate-700 font-medium">
-            <span>Crew Payroll (<span id="laborCalcSummary">2 movers x 3h</span>):</span>
-            <span id="laborTotalDisplay" class="font-bold text-rose-600">$0.00</span>
+          
+          <div id="quoteShapeLine" class="mt-2 pt-2 border-t border-slate-100 flex justify-between items-center text-[11px]">
+            <span class="font-semibold text-slate-500">Client-facing shape:</span>
+            <span id="quoteShapeText" class="font-bold text-slate-800"></span>
           </div>
-          <div class="flex justify-between py-1.5 pt-2 text-slate-900 font-bold text-sm">
-            <span>Net Take-Home Profit:</span>
-            <span id="sideProfitDisplay" class="font-extrabold text-emerald-600">$0.00</span>
+          
+          
+        </section>
+
+        <!-- Client Communication -->
+        <section class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col h-full space-y-3">
+          <div class="flex items-center justify-between mb-1">
+            <h2 class="text-xs font-bold uppercase tracking-wider text-blue-600">Client Message</h2>
+            <div class="flex gap-2">
+              <button id="regenQuoteBtn" aria-label="Regenerate message" class="hidden text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded hover:bg-amber-100 transition">↻ Regenerate</button>
+              <button id="copyBtn" aria-label="Copy quote message" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-[11px] px-3 py-1.5 rounded-lg transition shadow-sm">Copy</button>
+            </div>
           </div>
+
+          <div role="tablist" class="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-[11px] mb-2">
+            <button role="tab" aria-selected="true" type="button" class="tab-btn py-1.5 rounded-lg font-bold text-white bg-blue-600 transition shadow-sm" data-template="standard">Quote</button>
+            <button role="tab" aria-selected="false" type="button" class="tab-btn py-1.5 rounded-lg font-medium text-slate-600 hover:text-slate-900 transition" data-template="detailed">Breakdown</button>
+            <button role="tab" aria-selected="false" type="button" class="tab-btn py-1.5 rounded-lg font-medium text-slate-600 hover:text-slate-900 transition" data-template="booking">Booking</button>
+          </div>
+
+          <textarea id="templateOutput" class="w-full flex-grow bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none min-h-[160px]"></textarea>
         </section>
 
       </div>
     </div>
   </div>
 
-  <!-- Mobile Sticky Footer Bar -->
-  <div class="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 py-3 z-50 shadow-lg md:hidden">
-    <div class="max-w-5xl mx-auto flex items-center justify-between gap-4">
-      <div>
-        <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Recommended Quote</span>
-        <div class="flex items-baseline gap-2">
-          <span id="bottomQuoteDisplay" class="text-2xl font-black text-blue-600">$0.00</span>
-          <span id="bottomCrewSummary" class="text-[11px] text-slate-500 font-semibold">2 Movers • 10' Box</span>
-        </div>
-      </div>
-      <button id="mobileCopyBtn" class="bg-blue-600 active:bg-blue-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 shadow-md shadow-blue-500/20">
-        <span>📋</span> Copy Text
-      </button>
+  <!-- Mobile Footer -->
+  <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 z-50 md:hidden flex justify-between items-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] print:hidden">
+    <div>
+      <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Total Quote</span>
+      <div id="mobQuoteDisplay" class="text-2xl font-black text-blue-600 leading-none">$0.00</div>
+    </div>
+    <div class="flex gap-2">
+      <button id="mobileNewQuoteBtn" aria-label="Start a new quote" class="bg-slate-100 text-slate-700 font-bold text-sm px-4 py-2.5 rounded-xl shadow-sm">New</button>
+      <button id="mobileSaveQuoteBtn" aria-label="Print or save quote as PDF" class="bg-slate-800 text-white font-bold text-sm px-4 py-2.5 rounded-xl shadow-sm">PDF</button>
+      <button id="mobileCopyBtn" aria-label="Copy quote message" class="bg-blue-600 text-white font-bold text-sm px-5 py-2.5 rounded-xl shadow-sm">Copy</button>
     </div>
   </div>
 
-  <script>
-    // Presets Database
-    const presets = {
-      single: { truck: 'van', movers: 2, hours: 1.5, insurance: 16 },
-      micro:  { truck: 'van', movers: 2, hours: 2.0, insurance: 16 },
-      '1bed': { truck: '10ft', movers: 2, hours: 3.0, insurance: 16 },
-      '2bed': { truck: '15ft', movers: 2, hours: 4.5, insurance: 20 },
-      '3bed': { truck: '20ft', movers: 3, hours: 6.0, insurance: 25 },
-      '4bed': { truck: '26ft', movers: 4, hours: 7.5, insurance: 30 }
-    };
+  <!-- Changelog Drawer -->
+  <div id="changelogOverlay" class="fixed inset-0 bg-slate-900/40 z-40 hidden print:hidden" aria-hidden="true"></div>
+  <aside id="changelogDrawer" class="fixed top-0 right-0 h-full w-full max-w-sm bg-white shadow-2xl z-50 hidden flex-col" role="dialog" aria-label="Changelog">
+    <div class="flex items-center justify-between p-4 border-b border-slate-200">
+      <h2 class="text-sm font-bold uppercase tracking-wider text-blue-600">Changelog</h2>
+      <button id="closeChangelog" aria-label="Close changelog" class="text-slate-400 hover:text-slate-700 text-xl leading-none px-2">&times;</button>
+    </div>
+    <div id="changelogBody" class="p-4 overflow-y-auto space-y-4 text-xs"></div>
+  </aside>
 
-    // Truck Rate Specs
-    const truckRates = {
-      van:  { base: 19.95, perKm: 0.79, fuelKm: 0.25, maxVol: 245, name: "9' Cargo Van" },
-      '10ft': { base: 19.95, perKm: 0.89, fuelKm: 0.30, maxVol: 402, name: "10' Box Truck" },
-      '15ft': { base: 29.95, perKm: 0.99, fuelKm: 0.35, maxVol: 764, name: "15' Box Truck" },
-      '20ft': { base: 39.95, perKm: 1.09, fuelKm: 0.40, maxVol: 1016, name: "20' Box Truck" },
-      '26ft': { base: 39.95, perKm: 1.19, fuelKm: 0.45, maxVol: 1682, name: "26' Box Truck" }
-    };
-
-    let activeTemplate = 'standard';
-
-    // Elements
-    const loadPreset = document.getElementById('loadPreset');
-    const modeBadge = document.getElementById('modeBadge');
-    const customItemSection = document.getElementById('customItemSection');
-    const totalVolumeDisplay = document.getElementById('totalVolumeDisplay');
-    const itemQtyInputs = document.querySelectorAll('.item-qty');
-    const truckSize = document.getElementById('truckSize');
-    const insuranceCost = document.getElementById('insuranceCost');
-    const distanceKm = document.getElementById('distanceKm');
-    const tripType = document.getElementById('tripType');
-    const laborHours = document.getElementById('laborHours');
-    const crewSize = document.getElementById('crewSize');
-    const moverWage = document.getElementById('moverWage');
-    const stairsCount = document.getElementById('stairsCount');
-    const heavyFee = document.getElementById('heavyFee');
-    const accessFee = document.getElementById('accessFee');
-    const profitMargin = document.getElementById('profitMargin');
-    const marginLabel = document.getElementById('marginLabel');
-
-    // Outputs
-    const topQuoteDisplay = document.getElementById('topQuoteDisplay');
-    const topCrewSummary = document.getElementById('topCrewSummary');
-    const topUhaulAudit = document.getElementById('topUhaulAudit');
-    const topLaborAudit = document.getElementById('topLaborAudit');
-    const topTotalCostAudit = document.getElementById('topTotalCostAudit');
-    const topProfitAudit = document.getElementById('topProfitAudit');
+  <!-- JavaScript Application Logic -->
+  
+  <!-- Print Document Template -->
+  <div id="printDocument" class="hidden print:block absolute top-0 left-0 w-full bg-white text-black p-8 font-sans">
+    <div class="flex justify-between items-end border-b-2 border-slate-800 pb-4 mb-6">
+      <div>
+        <h1 class="text-3xl font-black text-slate-900 tracking-tight">Halifax Harbour Movers</h1>
+        <p class="text-sm font-semibold text-slate-500 uppercase tracking-widest mt-1">Official Quote Document</p>
+      </div>
+      <div class="text-right">
+        <p class="text-sm text-slate-500 font-medium">Date: <span id="printDate"></span></p>
+        <p class="text-sm text-slate-500 font-medium">Quote Ref: <span id="printId"></span></p>
+      </div>
+    </div>
     
-    const bottomQuoteDisplay = document.getElementById('bottomQuoteDisplay');
-    const bottomCrewSummary = document.getElementById('bottomCrewSummary');
-    const uhaulBaseDisplay = document.getElementById('uhaulBaseDisplay');
-    const uhaulKmDisplay = document.getElementById('uhaulKmDisplay');
-    const uhaulTaxDisplay = document.getElementById('uhaulTaxDisplay');
-    const uhaulTotalDisplay = document.getElementById('uhaulTotalDisplay');
-    const laborCalcSummary = document.getElementById('laborCalcSummary');
-    const laborTotalDisplay = document.getElementById('laborTotalDisplay');
-    const sideProfitDisplay = document.getElementById('sideProfitDisplay');
+    <div class="grid grid-cols-2 gap-8 mb-8">
+      <div>
+        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Customer Information</h3>
+        <p class="text-lg font-bold" id="printCustomerName">-</p>
+        <p class="text-sm text-slate-600 mt-1">Lead Source: <span id="printLeadSource">-</span></p>
+      </div>
+      <div>
+        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Service Details</h3>
+        <ul class="text-sm space-y-1">
+          <li><strong>Service Mode:</strong> <span id="printServiceMode"></span></li>
+          <li><strong>Crew Size:</strong> <span id="printCrew"></span></li>
+          <li><strong>Vehicle:</strong> <span id="printVehicle"></span></li>
+          <li><strong>Distance (Roundtrip):</strong> <span id="printDistance"></span> km</li>
+        </ul>
+      </div>
+    </div>
+    
+    <div class="mb-8">
+      <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Message to Client</h3>
+      <div class="bg-slate-50 border border-slate-200 p-4 rounded-lg text-sm whitespace-pre-wrap font-medium" id="printMessage"></div>
+    </div>
+    
+    <div>
+      <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Internal Financial Breakdown</h3>
+      <table class="w-full text-sm text-left border-collapse">
+        <tbody>
+          <tr class="border-b border-slate-100">
+            <td class="py-2 font-medium">Truck/Equip Direct Cost (Pre-Tax)</td>
+            <td class="py-2 text-right" id="printEquipCost"></td>
+          </tr>
+          <tr class="border-b border-slate-100">
+            <td class="py-2 font-medium">Labour Direct Cost</td>
+            <td class="py-2 text-right" id="printLabCost"></td>
+          </tr>
+          <tr class="border-b-2 border-slate-800">
+            <td class="py-2 font-bold">Total Direct Cost</td>
+            <td class="py-2 text-right font-bold" id="printTotalCost"></td>
+          </tr>
+          <tr class="border-b border-slate-100">
+            <td class="py-2 font-medium">Target Profit Margin</td>
+            <td class="py-2 text-right" id="printMargin"></td>
+          </tr>
+          <tr>
+            <td class="py-3 text-lg font-black text-blue-600">Total Quoted to Client</td>
+            <td class="py-3 text-right text-lg font-black text-blue-600" id="printQuoted"></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="mt-12 text-center text-xs text-slate-400 border-t border-slate-200 pt-4">
+      CONFIDENTIAL INTERNAL RECORD — DO NOT DISTRIBUTE FINANCIAL BREAKDOWN TO CLIENTS.
+    </div>
+  </div>
+  <script>
 
-    const templateOutput = document.getElementById('templateOutput');
-    const copyBtn = document.getElementById('copyBtn');
-    const copyBtnText = document.getElementById('copyBtnText');
-    const mobileCopyBtn = document.getElementById('mobileCopyBtn');
-    const tabBtns = document.querySelectorAll('.tab-btn');
 
-    // Load Selector Change
-    loadPreset.addEventListener('change', (e) => {
-      if (e.target.value === 'custom') {
-        customItemSection.classList.remove('hidden');
-        modeBadge.textContent = "Custom Itemized Mode";
-        modeBadge.className = "text-[11px] bg-amber-50 text-amber-700 border border-amber-200 px-2.5 py-0.5 rounded-full font-semibold";
-        recalculateCustomLoad();
-      } else {
-        customItemSection.classList.add('hidden');
-        modeBadge.textContent = "Preset Mode";
-        modeBadge.className = "text-[11px] bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-0.5 rounded-full font-medium";
-        const selected = presets[e.target.value];
-        if (selected) {
-          truckSize.value = selected.truck;
-          crewSize.value = selected.movers;
-          laborHours.value = selected.hours;
-          insuranceCost.value = selected.insurance;
-        }
+    // --- PART G: CHANGELOG & VERSIONING ---
+    const APP_VERSION = '2.0.0';
+    const CHANGELOG = [
+      { v: '2.0.0', date: '2026-09-08', notes: [
+          'Route model rebuilt: depot → pickup → dropoff → depot with truckload loops',
+          'Removed misleading round-trip / one-way toggle',
+          'HST handled correctly for registered businesses (ITCs + collected tax split out)',
+          'Drive time and depot overhead now paid labour',
+          'Added Truck + Driver and Labor Only service modes',
+          'All rates moved to an editable Rate Card'
+      ]},
+      { v: '1.0.0', date: '2026-08-01', notes: ['Initial estimator[cite: 1]'] }
+    ];
+
+    // --- PART A: CENTRAL CONFIGURATION ---
+    const DEFAULT_CONFIG = {
+      business: {
+        hstRegistered: false, // TODO(owner): Confirm if registered.
+        hstRate: 0.15,
+        legalName: 'HRM Moving',
+      },
+      depot: { label: 'U-Haul Dartmouth', address: '' },
+      travel: {
+        avgSpeedKmh: 45,
+        depotOverheadHours: 0.75,
+        perLoadPenaltyHours: 0.3,
+        billDeadheadToClient: false
+      },
+      wages: { mover: 22, driver: 26 },
+      surcharges: { perStairFlight: 30, stairHoursPerFlight: 0.2, heavyItemDefault: 0, accessDefault: 0 },
+      equipment: { kitCostPerJob: 15, truckOnlyRiskPremium: 35 },
+      margin: { fullService: 0.35, truckDriver: 0.45, laborOnly: 0.50 },
+      minimums: {
+        fullService: { hours: 2.0, floor: 180 },
+        truckDriver: { hours: 2.0, floor: 150 }, // TODO(owner): Confirm floor.
+        laborOnly:   { hours: 2.0, floor: 120 }
+      },
+      advisory: { opportunityCostPerTruckDay: 250, diyWarnMultiplier: 1.6 },
+      quoteRounding: 5,
+      trucks: {
+        van:    { base: 19.95, perKm: 0.79, fuelKm: 0.25, maxVol: 245,  name: "9ft Cargo Van" },
+        '10ft': { base: 19.95, perKm: 0.89, fuelKm: 0.30, maxVol: 402,  name: "10ft Box Truck" },
+        '15ft': { base: 29.95, perKm: 0.99, fuelKm: 0.35, maxVol: 764,  name: "15ft Box Truck" },
+        '20ft': { base: 39.95, perKm: 1.09, fuelKm: 0.40, maxVol: 1016, name: "20ft Box Truck" },
+        '26ft': { base: 39.95, perKm: 1.19, fuelKm: 0.45, maxVol: 1682, name: "26ft Box Truck" }
+      },
+      presets: {
+        single: { truck: 'van',  movers: 2, hours: 1.5, insurance: 16 },
+        micro:  { truck: 'van',  movers: 2, hours: 2.0, insurance: 16 },
+        '1bed': { truck: '10ft', movers: 2, hours: 3.0, insurance: 16 },
+        '2bed': { truck: '15ft', movers: 2, hours: 4.5, insurance: 20 },
+        '3bed': { truck: '20ft', movers: 3, hours: 6.0, insurance: 25 },
+        '4bed': { truck: '26ft', movers: 4, hours: 7.5, insurance: 30 }
       }
-      calculate();
-    });
+    };
 
-    // Custom Load Recalculation
-    function recalculateCustomLoad() {
-      let totalVolume = 0;
-      itemQtyInputs.forEach(input => {
-        const qty = parseInt(input.value) || 0;
-        const vol = parseFloat(input.dataset.vol) || 0;
-        totalVolume += qty * vol;
-      });
+    let CONFIG = loadConfig();
 
-      totalVolumeDisplay.textContent = `${totalVolume} cu. ft.`;
-
-      // Match Truck & Recommended Hours based on Volume
-      if (totalVolume <= 200) {
-        truckSize.value = 'van';
-        laborHours.value = Math.max(1.5, Math.round((totalVolume / 100) * 10) / 10);
-        crewSize.value = 2;
-        insuranceCost.value = 16;
-      } else if (totalVolume <= 380) {
-        truckSize.value = '10ft';
-        laborHours.value = Math.max(2.0, Math.round((totalVolume / 120) * 10) / 10);
-        crewSize.value = 2;
-        insuranceCost.value = 16;
-      } else if (totalVolume <= 720) {
-        truckSize.value = '15ft';
-        laborHours.value = Math.max(3.5, Math.round((totalVolume / 150) * 10) / 10);
-        crewSize.value = 2;
-        insuranceCost.value = 20;
-      } else if (totalVolume <= 980) {
-        truckSize.value = '20ft';
-        laborHours.value = Math.max(5.0, Math.round((totalVolume / 170) * 10) / 10);
-        crewSize.value = 3;
-        insuranceCost.value = 25;
-      } else {
-        truckSize.value = '26ft';
-        laborHours.value = Math.max(6.5, Math.round((totalVolume / 180) * 10) / 10);
-        crewSize.value = 4;
-        insuranceCost.value = 30;
+    function deepMerge(target, source) {
+      for (const key of Object.keys(source)) {
+        if (source[key] instanceof Object && key in target) Object.assign(source[key], deepMerge(target[key], source[key]));
       }
+      Object.assign(target || {}, source);
+      return target;
     }
 
-    itemQtyInputs.forEach(input => {
-      input.addEventListener('input', () => {
-        if (loadPreset.value === 'custom') {
-          recalculateCustomLoad();
-          calculate();
-        }
-      });
-    });
-
-    // Slider
-    profitMargin.addEventListener('input', (e) => {
-      marginLabel.textContent = `${e.target.value}%`;
+    function loadConfig() {
+      try { localStorage.removeItem('hrm.config.v2'); } catch(e) {}
+      try {
+        const saved = JSON.parse(localStorage.getItem('hrm.config.v2'));
+        return saved ? deepMerge(JSON.parse(JSON.stringify(DEFAULT_CONFIG)), saved) : JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+      } catch { return JSON.parse(JSON.stringify(DEFAULT_CONFIG)); }
+    }
+    
+    function saveConfig() {
+      try { localStorage.setItem('hrm.config.v2', JSON.stringify(CONFIG)); } catch(e) {}
       calculate();
-    });
+    }
+    
+    function resetConfig() {
+      if(document.getElementById('settingsModal')) document.getElementById('settingsModal').classList.add('hidden');
+      try { localStorage.removeItem('hrm.config.v2'); } catch(e) {}
+      CONFIG = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+      driveTimeOverridden = false;
+      initRateCard();
+      calculate();
+    }
 
-    // Template Selector
-    tabBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        tabBtns.forEach(b => {
-          b.classList.remove('bg-blue-600', 'text-white', 'font-semibold', 'shadow-2xs');
-          b.classList.add('text-slate-600', 'font-medium');
+    // State Variables
+    let mode = 'fullService';
+    let activeTemplate = 'standard';
+    let templateDirty = false;
+    let lastResult = null;
+    let driveTimeOverridden = false;
+    
+    // Helpers
+    const ceilTo = (v, step) => Math.ceil(v / step) * step;
+
+    // DOM Elements Mapping
+    const els = {
+      modeBtns: document.querySelectorAll('.mode-btn'),
+      loadPreset: document.getElementById('loadPreset'),
+      customItemSection: document.getElementById('customItemSection'),
+      itemQtys: document.querySelectorAll('.item-qty'),
+      totalVol: document.getElementById('totalVolumeDisplay'),
+      truckSize: document.getElementById('truckSize'),
+      insurance: document.getElementById('insuranceCost'),
+      equipmentBlock: document.getElementById('equipmentBlock'),
+      truckOnlyWarning: document.getElementById('truckOnlyWarning'),
+      dZA: document.getElementById('dZA'),
+      dAB: document.getElementById('dAB'),
+      dBZ: document.getElementById('dBZ'),
+      dBZContainer: document.getElementById('dBZContainer'),
+      mirrorReturn: document.getElementById('mirrorReturn'),
+      truckLoads: document.getElementById('truckLoads'),
+      routeSummary: document.getElementById('routeSummaryStrip'),
+      handlingHours: document.getElementById('handlingHours'),
+      driveHoursDisp: document.getElementById('driveHoursDisplay'),
+      paidHoursDisp: document.getElementById('paidHoursDisplay'),
+      hoursOverride: document.getElementById('hoursOverride'),
+      crewSize: document.getElementById('crewSize'),
+      crewContainer: document.getElementById('crewSizeContainer'),
+      stairs: document.getElementById('stairsCount'),
+      heavy: document.getElementById('heavyFee'),
+      access: document.getElementById('accessFee'),
+      warningStrip: document.getElementById('warningStrip'),
+      templateOutput: document.getElementById('templateOutput'),
+      regenQuoteBtn: document.getElementById('regenQuoteBtn'),
+      copyBtns: [document.getElementById('copyBtn'), document.getElementById('mobileCopyBtn')],
+      tabBtns: document.querySelectorAll('.tab-btn'),
+      // Displays
+      topQuote: document.getElementById('topQuoteDisplay'),
+      mobQuote: document.getElementById('mobQuoteDisplay'),
+      hstBadge: document.getElementById('hstBadge'),
+      audit: {
+        clientPays: document.getElementById('auditClientPays'),
+        hstCol: document.getElementById('auditHstCollected'),
+        netRev: document.getElementById('auditNetRevenue'),
+        equipCost: document.getElementById('auditEquipCost'),
+        labCost: document.getElementById('auditLaborCost'),
+        netProf: document.getElementById('auditNetProfit'),
+        marginPct: document.getElementById('auditMarginPct'),
+        profHr: document.getElementById('auditProfitPerHr'),
+        hstOwed: document.getElementById('auditHstOwed'),
+        hstBlock: document.getElementById('hstRemitBlock')
+      },
+      // Config Inputs
+      profitMargin: document.getElementById('profitMargin'),
+      marginLabel: document.getElementById('marginLabel'),
+      customerName: document.getElementById('customerName'),
+      leadSource: document.getElementById('leadSource'),
+      cfg: {
+        moverWage: document.getElementById('cfgMoverWage'),
+        driverWage: document.getElementById('cfgDriverWage'),
+        stairFee: document.getElementById('cfgStairFee'),
+        speed: document.getElementById('cfgSpeed'),
+        mFull: document.getElementById('cfgMarginFull'),
+        mTruck: document.getElementById('cfgMarginTruck'),
+        mLabor: document.getElementById('cfgMarginLabor'),
+        depotOverhead: document.getElementById('cfgDepotOverhead'),
+        
+        
+        kitCost: document.getElementById('cfgKitCost'),
+        riskPremium: document.getElementById('cfgRiskPremium'),
+        minFull: document.getElementById('cfgMinFull'),
+        minTruck: document.getElementById('cfgMinTruck'),
+        minLabor: document.getElementById('cfgMinLabor'),
+        opportunityCost: document.getElementById('cfgOpportunityCost'),
+        diyMultiplier: document.getElementById('cfgDiyMultiplier'),
+        rounding: document.getElementById('cfgRounding'),
+        hstRegistered: document.getElementById('cfgHstRegistered'),
+      }
+    };
+
+    // --- INITIALIZATION ---
+    
+    
+    
+
+    
+
+    function init() {
+      // Populate Truck Dropdown
+      els.truckSize.innerHTML = Object.entries(CONFIG.trucks).map(([k, v]) => 
+        `<option value="${k}">${v.name} ($${v.base} + $${v.perKm}/km)</option>`
+      ).join('');
+      
+      initRateCard();
+            attachListeners();
+      applyModeRules();
+      calculate();
+    }
+
+    function initRateCard() {
+      if(els.cfg.moverWage) els.cfg.moverWage.value = CONFIG.wages.mover;
+      if(els.cfg.stairFee) els.cfg.stairFee.value = CONFIG.surcharges.perStairFlight;
+      if(els.cfg.mFull) els.cfg.mFull.value = CONFIG.margin.fullService;
+      if(els.cfg.mTruck) els.cfg.mTruck.value = CONFIG.margin.truckDriver;
+      if(els.cfg.mLabor) els.cfg.mLabor.value = CONFIG.margin.laborOnly;
+      if(els.cfg.depotOverhead) els.cfg.depotOverhead.value = CONFIG.travel.depotOverheadHours;
+      
+      
+      
+      
+      
+    }
+
+    // --- EVENT LISTENERS ---
+    function attachListeners() {
+      const capBar = document.getElementById('capacityActionBar');
+      if(capBar) {
+        capBar.addEventListener('click', (e) => {
+          const btn = e.target.closest('button'); if (!btn) return;
+          if (btn.dataset.act === 'loops') {
+            els.truckLoads.value = btn.dataset.n;
+          } else {
+            const order = ['van','10ft','15ft','20ft','26ft'];
+            const i = order.indexOf(els.truckSize.value);
+            if (i < order.length - 1) els.truckSize.value = order[i + 1];
+          }
+          calculate();
         });
-        btn.classList.add('bg-blue-600', 'text-white', 'font-semibold', 'shadow-2xs');
-        btn.classList.remove('text-slate-600', 'font-medium');
-        activeTemplate = btn.dataset.template;
+      }
+      // Mode Switching
+      els.modeBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          els.modeBtns.forEach(b => {
+            b.classList.remove('bg-blue-600', 'text-white', 'shadow-sm');
+            b.classList.add('text-slate-600', 'bg-transparent');
+            b.setAttribute('aria-pressed', 'false');
+          });
+          e.target.classList.add('bg-blue-600', 'text-white', 'shadow-sm');
+          e.target.classList.remove('text-slate-600', 'bg-transparent');
+          e.target.setAttribute('aria-pressed', 'true');
+          mode = e.target.dataset.mode;
+          applyModeRules();
+          calculate();
+        });
+      });
+
+      // Mirror Checkbox
+      els.mirrorReturn.addEventListener('change', (e) => {
+        els.dBZ.disabled = e.target.checked;
+        if (e.target.checked) els.dBZ.value = els.dZA.value;
         calculate();
       });
-    });
+      els.dZA.addEventListener('input', () => {
+        if (els.mirrorReturn.checked) els.dBZ.value = els.dZA.value;
+      });
 
-    // Event listeners
-    [truckSize, insuranceCost, distanceKm, tripType, laborHours, crewSize, moverWage, stairsCount, heavyFee, accessFee].forEach(el => {
-      el.addEventListener('input', calculate);
-      el.addEventListener('change', calculate);
-    });
-
-    function calculate() {
-      const truck = truckRates[truckSize.value];
-      const rawKm = parseFloat(distanceKm.value) || 0;
-      const totalKm = tripType.value === 'round' ? rawKm : rawKm * 2;
-      const hours = parseFloat(laborHours.value) || 0;
-      const movers = parseInt(crewSize.value) || 1;
-      const wage = parseFloat(moverWage.value) || 0;
-      const insurance = parseFloat(insuranceCost.value) || 0;
-      const stairs = (parseInt(stairsCount.value) || 0) * 30;
-      const heavy = parseFloat(heavyFee.value) || 0;
-      const access = parseFloat(accessFee.value) || 0;
-      const totalSurcharges = stairs + heavy + access;
-      const margin = (parseFloat(profitMargin.value) || 0) / 100;
-
-      // 1. Truck Expenses
-      const uhaulKmFee = totalKm * truck.perKm;
-      const uhaulFuel = totalKm * truck.fuelKm;
-      const uhaulPreTax = truck.base + uhaulKmFee + insurance;
-      const uhaulTax = uhaulPreTax * 0.15; // 15% NS HST
-      const totalUhaulCost = uhaulPreTax + uhaulTax + uhaulFuel;
-
-      // 2. Labor Expenses
-      const totalLaborCost = movers * hours * wage;
-
-      // 3. Total Operational Hard Cost
-      const totalDirectCost = totalUhaulCost + totalLaborCost;
-
-      // 4. Quote Calculation with Margin
-      const baseQuote = totalDirectCost / (1 - margin);
-      const finalQuote = Math.ceil((baseQuote + totalSurcharges) / 5) * 5;
-      const netProfit = finalQuote - totalDirectCost;
-
-      // Render Displays
-      topQuoteDisplay.textContent = `$${finalQuote.toFixed(2)}`;
-      bottomQuoteDisplay.textContent = `$${finalQuote.toFixed(2)}`;
-
-      const crewString = `${movers} Mover${movers > 1 ? 's' : ''} • ${truck.name}`;
-      topCrewSummary.textContent = crewString;
-      bottomCrewSummary.textContent = crewString;
-
-      topUhaulAudit.textContent = `$${totalUhaulCost.toFixed(2)}`;
-      topLaborAudit.textContent = `$${totalLaborCost.toFixed(2)}`;
-      topTotalCostAudit.textContent = `$${totalDirectCost.toFixed(2)}`;
-      topProfitAudit.textContent = `$${netProfit.toFixed(2)}`;
-      sideProfitDisplay.textContent = `$${netProfit.toFixed(2)}`;
-
-      uhaulBaseDisplay.textContent = `$${truck.base.toFixed(2)}`;
-      uhaulKmDisplay.textContent = `$${(uhaulKmFee + uhaulFuel).toFixed(2)} (${totalKm} km)`;
-      uhaulTaxDisplay.textContent = `$${(insurance + uhaulTax).toFixed(2)}`;
-      uhaulTotalDisplay.textContent = `$${totalUhaulCost.toFixed(2)}`;
+      // Custom Preset
+      els.loadPreset.addEventListener('change', (e) => {
+        if (e.target.value === 'custom') {
+          els.customItemSection.classList.remove('hidden');
+          recalculateCustomLoad();
+        } else {
+          els.customItemSection.classList.add('hidden');
+          const p = CONFIG.presets[e.target.value];
+          if (p) {
+            els.truckSize.value = p.truck;
+            els.crewSize.value = p.movers;
+            els.handlingHours.value = p.hours;
+            els.insurance.value = p.insurance;
+          }
+        }
+        calculate();
+      });
       
-      laborCalcSummary.textContent = `${movers} movers × ${hours}h @ $${wage}/h`;
-      laborTotalDisplay.textContent = `$${totalLaborCost.toFixed(2)}`;
+      els.itemQtys.forEach(inp => inp.addEventListener('input', () => {
+        if (els.loadPreset.value === 'custom') recalculateCustomLoad();
+        calculate();
+      }));
 
-      // Message Templates
-      updateTemplates(finalQuote, movers, truck.name, hours, totalKm);
+      // Template edits
+      els.templateOutput.addEventListener('input', () => {
+        templateDirty = true;
+        els.regenQuoteBtn.classList.remove('hidden');
+      });
+      els.regenQuoteBtn.addEventListener('click', () => {
+        templateDirty = false;
+        els.regenQuoteBtn.classList.add('hidden');
+        calculate();
+      });
+
+
+      // Inline Settings Listeners
+      if (els.cfg.moverWage) els.cfg.moverWage.addEventListener('input', updateConfigFromUI);
+      if (els.cfg.stairFee) els.cfg.stairFee.addEventListener('input', updateConfigFromUI);
+      if (els.cfg.depotOverhead) els.cfg.depotOverhead.addEventListener('input', updateConfigFromUI);
+
+      Object.values(els.cfg).forEach(inp => { if (inp) inp.addEventListener('change', updateConfigFromUI); });
+      if(els.customerName) els.customerName.addEventListener('input', calculate);
+      if(els.profitMargin) els.profitMargin.addEventListener('input', (e) => {
+        if(els.marginLabel) els.marginLabel.textContent = e.target.value + '%';
+        calculate();
+      });
+      if(els.stairs) els.stairs.addEventListener('input', calculate);
+      if(els.heavy) els.heavy.addEventListener('input', calculate);
+      if(els.access) els.access.addEventListener('input', calculate);
+      const rcBtn = document.getElementById('resetConfigBtn'); if (rcBtn) rcBtn.addEventListener('click', resetConfig);
+      const mobileSettingsBtn = document.getElementById('mobileSettingsBtn');
+      const settingsPanel = document.getElementById('settingsPanel');
+      if (mobileSettingsBtn && settingsPanel) {
+        mobileSettingsBtn.addEventListener('click', () => {
+          settingsPanel.open = true;
+          settingsPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      }
+
+      // Template Tabs
+      els.tabBtns.forEach(btn => btn.addEventListener('click', (e) => {
+        els.tabBtns.forEach(b => { 
+           b.classList.remove('bg-blue-600', 'text-white'); 
+           b.classList.add('text-slate-600'); 
+           b.setAttribute('aria-selected', 'false');
+        });
+        btn.classList.add('bg-blue-600', 'text-white');
+        btn.setAttribute('aria-selected', 'true');
+        btn.classList.remove('text-slate-600');
+        activeTemplate = btn.dataset.template;
+        templateDirty = false;
+        els.regenQuoteBtn.classList.add('hidden');
+        calculate();
+      }));
+
+      // Copy Buttons
+      els.copyBtns.forEach(b => b.addEventListener('click', () => {
+        els.templateOutput.select();
+        navigator.clipboard.writeText(els.templateOutput.value);
+        b.textContent = 'Copied!';
+        setTimeout(() => b.textContent = 'Copy', 2000);
+      }));
+
+      // Job Save
+      document.getElementById('saveQuoteBtn').addEventListener('click', () => {
+         document.getElementById('printDate').textContent = new Date().toLocaleDateString();
+         document.getElementById('printId').textContent = 'HRM-' + Math.floor(1000 + Math.random() * 9000);
+         document.getElementById('printCustomerName').textContent = document.getElementById('customerName').value || 'N/A';
+         document.getElementById('printLeadSource').textContent = document.getElementById('leadSource').value || 'N/A';
+         const modes = { fullService: 'Full Service', truckDriver: 'Truck + Driver', laborOnly: 'Labor Only' };
+         document.getElementById('printServiceMode').textContent = modes[lastResult.mode] || lastResult.mode;
+         document.getElementById('printCrew').textContent = lastResult.movers + ' Movers';
+         document.getElementById('printVehicle').textContent = lastResult.truck ? CONFIG.trucks[lastResult.truck].name : 'None';
+         document.getElementById('printDistance').textContent = lastResult.route.odometerKm;
+         document.getElementById('printMessage').textContent = els.templateOutput.value;
+         document.getElementById('printEquipCost').textContent = els.audit.equipCost.textContent;
+         document.getElementById('printLabCost').textContent = els.audit.labCost.textContent;
+         document.getElementById('printTotalCost').textContent = '$' + lastResult.directCost.toFixed(2);
+         document.getElementById('printMargin').textContent = `${els.profitMargin.value}%`;
+         document.getElementById('printQuoted').textContent = els.audit.clientPays.textContent;
+         window.print();
+         setTimeout(() => {
+           const cn = document.getElementById('customerName');
+           if (cn) cn.value = '';
+           const ls = document.getElementById('leadSource');
+           if (ls) ls.value = 'facebook';
+           if (typeof newQuote === 'function') newQuote();
+         }, 1000);
+      });
+      const newQuote = () => {
+         els.loadPreset.value = '1bed';
+        els.leadSource.value = 'facebook';
+        driveTimeOverridden = false;
+         els.customItemSection.classList.add('hidden');
+         els.dZA.value = 12; els.dAB.value = 15; els.dBZ.value = 12;
+         els.mirrorReturn.checked = true;
+         els.dBZ.disabled = true;
+         els.truckLoads.value = 1;
+         els.handlingHours.value = 3.0;
+         els.crewSize.value = 2;
+         els.insurance.value = 16;
+         els.stairs.value = 0; els.heavy.value = 0; els.access.value = 0;
+         els.hoursOverride.checked = false;
+         els.paidHoursDisp.readOnly = true;
+         templateDirty = false;
+         els.regenQuoteBtn.classList.add('hidden');
+         calculate();
+         window.scrollTo(0, 0);
+      };
+      document.getElementById('newQuoteBtn').addEventListener('click', newQuote);
+      document.getElementById('mobileSaveQuoteBtn').addEventListener('click', () => {
+        document.getElementById('saveQuoteBtn').click();
+      });
+      document.getElementById('mobileNewQuoteBtn').addEventListener('click', newQuote);
+      
+      
+      
+      
+      
+      
+
+      
+      // Changelog logic
+      document.getElementById('versionHeader').addEventListener('click', () => {
+        document.getElementById('changelogOverlay').classList.remove('hidden');
+        document.getElementById('changelogDrawer').classList.remove('hidden');
+        document.getElementById('changelogDrawer').classList.add('flex');
+      });
+      const closeChangelog = () => {
+        document.getElementById('changelogOverlay').classList.add('hidden');
+        document.getElementById('changelogDrawer').classList.add('hidden');
+        document.getElementById('changelogDrawer').classList.remove('flex');
+      };
+      document.getElementById('closeChangelog').addEventListener('click', closeChangelog);
+      document.getElementById('changelogOverlay').addEventListener('click', closeChangelog);
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeChangelog(); });
+
+      const clBody = document.getElementById('changelogBody');
+      if (clBody) {
+        clBody.innerHTML = CHANGELOG.map(c => `
+          <div class="border-b border-slate-100 pb-3">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded">v${c.v}</span>
+              <span class="text-slate-500">${c.date}</span>
+            </div>
+            <ul class="list-disc pl-4 space-y-1 text-slate-700">
+              ${c.notes.map(n => `<li>${n}</li>`).join('')}
+            </ul>
+          </div>
+        `).join('');
+      }
+
+      // Standard Triggers
+      [els.truckSize, els.insurance, els.dZA, els.dAB, els.dBZ, els.truckLoads, els.handlingHours, els.crewSize, els.stairs, els.heavy, els.access].forEach(el => {
+        el.addEventListener('input', calculate);
+      });
+      els.hoursOverride.addEventListener('change', (e) => {
+        els.paidHoursDisp.readOnly = !e.target.checked;
+        if (!e.target.checked) calculate();
+        else { els.paidHoursDisp.focus(); calculate(); }
+      });
+      els.paidHoursDisp.addEventListener('input', () => { if (els.hoursOverride.checked) calculate(); });
+      
     }
 
-    function updateTemplates(price, movers, truckName, hours, km) {
-      if (activeTemplate === 'standard') {
-        templateOutput.value = `Hi there! Based on your move details, your quote is $${price.toFixed(2)} (all-inclusive: equipment, fuel, and taxes included).\n\nThis includes our ${truckName}, a professional ${movers}-mover crew, and up to ~${hours} hours of dedicated service in HRM. Let us know if you'd like to reserve this slot!`;
-      } else if (activeTemplate === 'detailed') {
-        templateOutput.value = `Hello! Here is the itemized quote for your upcoming move:\n\n• Team: ${movers} Professional Movers + Dedicated ${truckName}\n• Duration: Estimated ${hours} hours total service\n• Distance: Up to ${km} km coverage (including depot)\n• All-Inclusive Total: $${price.toFixed(2)} (Includes truck rental, mileage, fuel, and 15% NS HST)\n\nNo surprise fees on moving day. Reply to lock in your date!`;
-      } else if (activeTemplate === 'booking') {
-        templateOutput.value = `Thanks for confirming! We have your move scheduled for [Date & Time].\n\n• Rate: $${price.toFixed(2)} all-inclusive (${movers} movers + ${truckName})\n• Estimated Time: ~${hours} hrs\n\nTo secure your dispatch truck and crew, please send a $50 e-Transfer deposit to [Your Email/Phone]. The remaining balance is payable upon completion on moving day.`;
+    function applyModeRules() {
+      const hasTruck = mode !== 'laborOnly';
+      els.equipmentBlock.classList.toggle('hidden', !hasTruck);
+      els.truckOnlyWarning.classList.toggle('hidden', mode !== 'truckDriver');
+      els.crewContainer.classList.toggle('hidden', mode === 'truckDriver');
+      if (mode === 'truckDriver') els.crewSize.value = 1; // force 1 driver
+      
+      const dABContainer = document.getElementById('dABContainer');
+      const mirrorReturnLabel = document.getElementById('mirrorReturnLabel');
+      const truckLoadsContainer = document.getElementById('truckLoadsContainer');
+      const dZALabel = document.getElementById('dZALabel');
+      
+      if (mode === 'laborOnly') {
+        if(dABContainer) dABContainer.classList.add('hidden');
+        els.dBZContainer.classList.add('hidden');
+        if(truckLoadsContainer) truckLoadsContainer.classList.add('hidden');
+        if(mirrorReturnLabel) mirrorReturnLabel.classList.add('hidden');
+        if(dZALabel) dZALabel.textContent = "Travel to site (km)";
+      } else {
+        if(dABContainer) dABContainer.classList.remove('hidden');
+        els.dBZContainer.classList.remove('hidden');
+        if(truckLoadsContainer) truckLoadsContainer.classList.remove('hidden');
+        if(mirrorReturnLabel) mirrorReturnLabel.classList.remove('hidden');
+        if(dZALabel) dZALabel.textContent = "Depot to Pickup (km)";
       }
     }
 
-    function handleCopy() {
-      templateOutput.select();
-      navigator.clipboard.writeText(templateOutput.value);
-      copyBtnText.textContent = 'Copied!';
-      mobileCopyBtn.innerHTML = '<span>✅</span> Copied!';
-      setTimeout(() => {
-        copyBtnText.textContent = 'Copy Text';
-        mobileCopyBtn.innerHTML = '<span>📋</span> Copy Text';
-      }, 2000);
+    function updateConfigFromUI() {
+      const p = (el, f) => { if (!el) return f; const v = el.value; return v === '' || isNaN(parseFloat(v)) ? f : parseFloat(v); };
+      CONFIG.wages.mover = p(els.cfg.moverWage, 22);
+      CONFIG.surcharges.perStairFlight = p(els.cfg.stairFee, 30);
+      if (els.cfg.depotOverhead && document.activeElement === els.cfg.depotOverhead) driveTimeOverridden = true;
+      
+      CONFIG.travel.depotOverheadHours = p(els.cfg.depotOverhead, 0.75);
+      
+      
+      
+      CONFIG.margin.fullService = p(els.cfg.mFull, 0.35);
+      CONFIG.margin.truckDriver = p(els.cfg.mTruck, 0.45);
+      CONFIG.margin.laborOnly = p(els.cfg.mLabor, 0.50);
+      
+      
+      
+      saveConfig();
     }
 
-    copyBtn.addEventListener('click', handleCopy);
-    mobileCopyBtn.addEventListener('click', handleCopy);
+    // --- LOGIC FUNCTIONS ---
+    function recalculateCustomLoad() {
+      let totalVol = 0;
+      els.itemQtys.forEach(i => totalVol += (parseInt(i.value) || 0) * (parseFloat(i.dataset.vol) || 0));
+      els.totalVol.textContent = `${totalVol} cu. ft.`;
 
-    // Initial Execution
-    calculate();
+      // Auto sizing logic based on presets map
+      if (totalVol <= 200) { els.truckSize.value = 'van'; els.handlingHours.value = Math.max(1.5, Math.round((totalVol/100)*10)/10); els.crewSize.value = 2; els.insurance.value = 16; }
+      else if (totalVol <= 380) { els.truckSize.value = '10ft'; els.handlingHours.value = Math.max(2.0, Math.round((totalVol/120)*10)/10); els.crewSize.value = 2; els.insurance.value = 16; }
+      else if (totalVol <= 720) { els.truckSize.value = '15ft'; els.handlingHours.value = Math.max(3.5, Math.round((totalVol/150)*10)/10); els.crewSize.value = 2; els.insurance.value = 20; }
+      else if (totalVol <= 980) { els.truckSize.value = '20ft'; els.handlingHours.value = Math.max(5.0, Math.round((totalVol/170)*10)/10); els.crewSize.value = 3; els.insurance.value = 25; }
+      else { els.truckSize.value = '26ft'; els.handlingHours.value = Math.max(6.5, Math.round((totalVol/180)*10)/10); els.crewSize.value = 4; els.insurance.value = 30; }
+    }
+
+    function checkCapacity(totalVolume, truckKey, loads) {
+      const cap = CONFIG.trucks[truckKey].maxVol;
+      const needed = Math.ceil(totalVolume / (cap * 0.85)); // 85% usable
+      return { needed, overCapacity: needed > loads, cap };
+    }
+
+    function computeRoute() {
+      const dZA = parseFloat(els.dZA.value) || 0;
+      const dAB = parseFloat(els.dAB.value) || 0;
+      const dBZ = parseFloat(els.dBZ.value) || 0;
+      const loads = Math.max(1, parseInt(els.truckLoads.value) || 1);
+      
+      const odometerKm = mode === 'laborOnly' ? dZA * 2 : dZA + dBZ + dAB * (2 * loads - 1);
+      const loadedKm = mode === 'laborOnly' ? 0 : dAB * loads;
+      const deadheadKm = odometerKm - loadedKm;
+      
+      return { odometerKm, loadedKm, deadheadKm, loads, dZA, dAB, dBZ };
+    }
+
+    function computeHours(handlingHours, odometerKm, loads, stairFlights) {
+      const driveHours = CONFIG.travel.depotOverheadHours;
+      
+      const rawPaid = handlingHours + driveHours;
+      const paidHours = els.hoursOverride.checked ? parseFloat(els.paidHoursDisp.value) : ceilTo(rawPaid, 0.25);
+      
+      const billableHours = ceilTo(handlingHours + (CONFIG.travel.billDeadheadToClient ? driveHours : driveHours * 0.5), 0.25);
+      
+      return { driveHours, paidHours, billableHours };
+    }
+
+    // --- MAIN CORE CALCULATION (PART F) ---
+    function calculate() {
+      if (els.hstBadge) els.hstBadge.classList.add('hidden');
+      CONFIG.business.hstRegistered = false;
+      els.warningStrip.innerHTML = '';
+      const warnings = [];
+
+      const t = CONFIG.trucks[els.truckSize.value];
+      const biz = CONFIG.business;
+      const hasTruck = mode !== 'laborOnly';
+      const handlingHours = parseFloat(els.handlingHours.value) || 0;
+      const stairs = parseInt(els.stairs.value) || 0;
+      const movers = parseInt(els.crewSize.value) || 1;
+      const insurance = parseFloat(els.insurance.value) || 0;
+      const heavy = parseFloat(els.heavy.value) || 0;
+      const access = parseFloat(els.access.value) || 0;
+
+      // 1. Model Travel & Time
+      const route = computeRoute();
+      const estimatedDriveHours = route.odometerKm / CONFIG.travel.avgSpeedKmh;
+      if (!driveTimeOverridden) {
+        CONFIG.travel.depotOverheadHours = estimatedDriveHours;
+        if (els.cfg.depotOverhead) els.cfg.depotOverhead.value = estimatedDriveHours.toFixed(2);
+      }
+      const hrs = computeHours(handlingHours, route.odometerKm, route.loads, stairs);
+      
+      // Update Route UI
+      els.routeSummary.textContent = mode === 'laborOnly'
+        ? `Travel: ${route.dZA} km · Drive pay only`
+        : `Route: ${route.odometerKm} km total · Loaded: ${route.loadedKm} km · ${route.loads} cycle${route.loads === 1 ? '' : 's'}`;
+      
+      if (!els.hoursOverride.checked) els.paidHoursDisp.value = hrs.paidHours;
+      els.driveHoursDisp.value = `${hrs.driveHours.toFixed(2)}h`;
+
+      // Capacity Check
+      if (hasTruck && els.loadPreset.value === 'custom') {
+        let vol = 0; els.itemQtys.forEach(i => vol += (parseInt(i.value)||0)*(parseFloat(i.dataset.vol)||0));
+        const cap = checkCapacity(vol, els.truckSize.value, route.loads);
+        if (cap.overCapacity) warnings.push(`⚠️ Load volume (${vol} cu ft) exceeds selected truck/loops. Set loops to ${cap.needed} or upgrade truck size.`);
+      }
+
+      // 2. Truck Cost (with HST handling)
+      let truckPreTax = 0, recoverableItc = 0, truckClientCost = 0;
+      if (hasTruck) {
+        const days = Math.max(1, Math.ceil(hrs.paidHours / 24));
+        const rentalPreTax = t.base * days + t.perKm * route.odometerKm + insurance * days;
+        const rentalHst = rentalPreTax * biz.hstRate;
+        
+        const fuelGross = route.odometerKm * t.fuelKm;
+        const fuelPreTax = fuelGross / (1 + biz.hstRate);
+        const fuelHst = fuelGross - fuelPreTax;
+
+        if (biz.hstRegistered) {
+          truckPreTax = rentalPreTax + fuelPreTax; 
+          recoverableItc = rentalHst + fuelHst;
+        } else {
+          truckPreTax = rentalPreTax + rentalHst + fuelGross;
+        }
+      }
+
+      // 3. Labor Cost
+      let laborCost = movers * hrs.paidHours * CONFIG.wages.mover;
+
+      // 4. Direct Cost
+      const directCost = truckPreTax + laborCost;
+
+      // 5. Price
+      const m = els.profitMargin ? (parseFloat(els.profitMargin.value) || 0) / 100 : CONFIG.margin[mode];
+      
+      const surcharge = stairs * CONFIG.surcharges.perStairFlight + heavy + access;
+
+      let subtotal = directCost / (1 - m) + surcharge;
+
+
+      const clientTotal = biz.hstRegistered ? subtotal * (1 + biz.hstRate) : subtotal;
+      const displayTotal = ceilTo(clientTotal, CONFIG.quoteRounding);
+
+      // 6. Back out Truth
+      const netRevenue = biz.hstRegistered ? displayTotal / (1 + biz.hstRate) : displayTotal;
+      const hstCollected = displayTotal - netRevenue;
+      const hstOwed = Math.max(0, hstCollected - recoverableItc);
+      const netProfit = netRevenue - directCost;
+      const marginPct = netRevenue > 0 ? netProfit / netRevenue : 0;
+      const profitPerHr = hrs.paidHours > 0 ? netProfit / hrs.paidHours : 0;
+
+      
+
+      // 7. Render UI
+      warnings.forEach(w => {
+        els.warningStrip.innerHTML += `<div class="bg-amber-100 border border-amber-300 text-amber-900 px-3 py-2 rounded-lg text-xs font-bold">${w}</div>`;
+      });
+
+      if(els.topQuote) els.topQuote.textContent = `$${displayTotal.toFixed(2)}`;
+      if(els.mobQuote) els.mobQuote.textContent = `$${displayTotal.toFixed(2)}`;
+
+      els.audit.clientPays.textContent = `$${displayTotal.toFixed(2)}`;
+      
+      els.audit.equipCost.textContent = `$${truckPreTax.toFixed(2)}`;
+      els.audit.labCost.textContent = `$${laborCost.toFixed(2)}`;
+      els.audit.netProf.textContent = `$${netProfit.toFixed(2)}`;
+      els.audit.marginPct.textContent = `(${(marginPct*100).toFixed(1)}% margin)`;
+      els.audit.profHr.textContent = `$${profitPerHr.toFixed(2)} / paid hr`;
+      
+      if(els.audit.hstBlock) els.audit.hstBlock.style.display = 'none';
+      if (biz.hstRegistered && els.hstBadge) els.hstBadge.classList.remove('hidden');
+      else if (els.hstBadge) els.hstBadge.classList.add('hidden');
+
+      lastResult = {
+        mode, loadType: els.loadPreset.value,
+        truck: hasTruck ? els.truckSize.value : null,
+        loads: route.loads,
+        route: { dZA: route.dZA, dAB: route.dAB, dBZ: route.dBZ, odometerKm: route.odometerKm },
+        hours: { handling: handlingHours, drive: +hrs.driveHours.toFixed(2), paid: hrs.paidHours, billable: hrs.billableHours },
+        quotedTotal: displayTotal, netRevenue, directCost,
+        projectedProfit: netProfit,
+        movers, stairs,
+        subtotal, hstCollected,
+      };
+
+      // Part D: Quote Shape Line
+      const minH = 2;
+      let tripCharge = 0;
+      if (hasTruck) {
+        const deadheadCost = t.perKm * route.deadheadKm * (mode === 'laborOnly' ? 0 : 1);
+        tripCharge = ceilTo((t.base + insurance + deadheadCost) / (1 - m), CONFIG.quoteRounding);
+      }
+      const impliedHourly = hrs.billableHours > 0 ? Math.max(0, (subtotal - tripCharge) / hrs.billableHours) : 0;
+      let shapeText = hasTruck 
+        ? `$${tripCharge.toFixed(0)} dispatch + $${impliedHourly.toFixed(0)}/hr, ${minH} hr minimum` 
+        : `$${impliedHourly.toFixed(0)}/hr per mover, ${minH} hr minimum`;
+      if (impliedHourly < 15) shapeText = `Flat rate $${subtotal.toFixed(0)}, ${minH} hr minimum`;
+      const qst = document.getElementById('quoteShapeText');
+      if (qst) qst.textContent = shapeText;
+
+      // Part E: Capacity Actions rendering
+      const capBar = document.getElementById('capacityActionBar');
+      if (capBar) {
+         if (hasTruck && els.loadPreset.value === 'custom') {
+           let vol = 0; els.itemQtys.forEach(i => vol += (parseInt(i.value)||0)*(parseFloat(i.dataset.vol)||0));
+           const cap = checkCapacity(vol, els.truckSize.value, route.loads);
+           if (cap.overCapacity) {
+             capBar.innerHTML = `
+               <button data-act="loops" data-n="${cap.needed}" class="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold">Set loops to ${cap.needed}</button>
+               <button data-act="bigger" class="px-3 py-1.5 rounded-lg bg-slate-700 text-white text-xs font-bold">Use next larger truck</button>
+             `;
+             capBar.classList.remove('hidden');
+           } else {
+             capBar.classList.add('hidden');
+           }
+         } else {
+           capBar.classList.add('hidden');
+         }
+      }
+
+      // 8. Update Templates
+      if (!templateDirty) {
+        const truckName = hasTruck ? t.name : 'Labor Only';
+        const cName = els.customerName && els.customerName.value.trim() ? els.customerName.value.trim() : 'there';
+        const bh = hrs.billableHours;
+        const hrRate = subtotal / bh;
+        
+        let tpl = "";
+        const hstStr = biz.hstRegistered ? " (incl NS HST)" : "";
+        const shapeStr = " " + shapeText;
+        if (mode === 'truckDriver') {
+           const msg = `Your driver operates the truck only and does not load or carry. Your crew supplies all lifting.`;
+           if (activeTemplate === 'standard') tpl = `Hi ${cName}! For our Truck + Driver service, your quote is $${displayTotal.toFixed(2)}${hstStr}. We supply the ${truckName}, driver, and equipment with a ${minH}-hour minimum; most jobs of this size land around ${bh} hours. ${msg}${shapeStr}`;
+           else if (activeTemplate === 'detailed') tpl = `Truck + Driver Breakdown:\n• Truck: ${truckName}\n• Duration: ${minH} hrs minimum (est. ${bh} hrs)\n• Total: $${displayTotal.toFixed(2)}${hstStr}\n${msg}`;
+           else tpl = `Booking Confirmed: Truck & Driver\nTotal: $${displayTotal.toFixed(2)}\nPlease e-Transfer deposit to secure dispatch.`;
+        } else if (mode === 'laborOnly') {
+           const msg = `Our crew works in and around your vehicle or building; you provide the truck and any transport.`;
+           if (activeTemplate === 'standard') tpl = `Hi ${cName}! For Labor-Only, your quote is $${displayTotal.toFixed(2)}${hstStr}. This covers a professional ${movers}-mover team with a ${minH}-hour minimum; most jobs of this size land around ${bh} hours. ${msg}${shapeStr}`;
+           else if (activeTemplate === 'detailed') tpl = `Labor-Only Breakdown:\n• Team: ${movers} Professional Movers\n• Duration: ${minH} hrs minimum (est. ${bh} hrs)\n• Total: $${displayTotal.toFixed(2)}${hstStr}\n${msg}`;
+           else tpl = `Booking Confirmed: Labor Only\nTotal: $${displayTotal.toFixed(2)}\nPlease e-Transfer deposit to secure the crew.`;
+        } else {
+           if (activeTemplate === 'standard') tpl = `Hi ${cName}! Based on your move details, your quote is $${displayTotal.toFixed(2)}${hstStr}. This includes a ${truckName}, a ${movers}-mover professional crew, and dispatch with a ${minH}-hour minimum; most jobs of this size land around ${bh} hours.${shapeStr}`;
+           else if (activeTemplate === 'detailed') tpl = `Detailed Breakdown:\n• Team: ${movers} Movers + ${truckName}\n• Duration: ${minH} hrs minimum (est. ${bh} hrs)\n• Total: $${displayTotal.toFixed(2)}${hstStr} (Includes U-Haul, fuel, labor, equipment)`;
+           else tpl = `Booking Confirmed: Full Service\nTotal: $${displayTotal.toFixed(2)} (${movers} movers + ${truckName})\nPlease e-Transfer deposit to secure your slot.`;
+        }
+        els.templateOutput.value = tpl;
+      }
+    }
+
+    // Run
+    init();
   </script>
 </body>
 </html>
