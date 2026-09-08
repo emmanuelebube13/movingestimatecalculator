@@ -48,6 +48,8 @@
       section.p-5 { padding: 16px; }
       #auditClientPays, #auditEquipCost, #auditLaborCost { white-space: nowrap; }
       #templateOutput { flex-grow: 0; height: 180px; min-height: 180px; }
+      [role="listbox"] { max-height: 220px; overflow-y: auto; }
+      [role="listbox"] button { min-height: 42px; }
     }
     @media (min-width: 1024px) {
       .grid.grid-cols-1.lg\\:grid-cols-12 { align-items: start; }
@@ -190,6 +192,31 @@
                   <option value="other">Other</option>
                 </select>
               </div>
+            </div>
+
+            <div class="space-y-3">
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div class="relative">
+                  <label for="depotAddress" class="block text-[11px] font-semibold text-slate-700 mb-1">Depot Address</label>
+                  <input type="text" id="depotAddress" role="combobox" aria-autocomplete="list" aria-controls="depotAddressSuggestions" aria-expanded="false" autocomplete="street-address" placeholder="Depot address" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+                  <ul id="depotAddressSuggestions" role="listbox" class="hidden absolute left-0 right-0 top-full z-20 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden text-xs"></ul>
+                </div>
+                <div class="relative">
+                  <label for="pickupAddress" class="block text-[11px] font-semibold text-slate-700 mb-1">Pickup Address</label>
+                  <input type="text" id="pickupAddress" role="combobox" aria-autocomplete="list" aria-controls="pickupAddressSuggestions" aria-expanded="false" autocomplete="street-address" placeholder="Pickup address" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+                  <ul id="pickupAddressSuggestions" role="listbox" class="hidden absolute left-0 right-0 top-full z-20 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden text-xs"></ul>
+                </div>
+                <div class="relative">
+                  <label for="dropoffAddress" class="block text-[11px] font-semibold text-slate-700 mb-1">Dropoff Address</label>
+                  <input type="text" id="dropoffAddress" role="combobox" aria-autocomplete="list" aria-controls="dropoffAddressSuggestions" aria-expanded="false" autocomplete="street-address" placeholder="Dropoff address" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+                  <ul id="dropoffAddressSuggestions" role="listbox" class="hidden absolute left-0 right-0 top-full z-20 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden text-xs"></ul>
+                </div>
+              </div>
+              <div class="flex flex-col sm:flex-row sm:items-center gap-2">
+                <button type="button" id="calculateRouteBtn" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2.5 rounded-lg transition">Calculate Route Distances</button>
+                <span class="text-[11px] text-slate-500">Optional map lookup for convenience and accuracy.</span>
+              </div>
+              <p class="text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">You can always type the kilometres manually below if the map is unavailable or the suggested route needs correcting.</p>
             </div>
             
             <div id="routeInputsGrid" class="grid grid-cols-3 gap-3">
@@ -419,6 +446,7 @@
 
   <!-- Changelog Drawer -->
   <div id="changelogOverlay" class="fixed inset-0 bg-slate-900/40 z-40 hidden print:hidden" aria-hidden="true"></div>
+  <div id="routeToast" role="status" aria-live="polite" class="hidden fixed left-1/2 bottom-24 z-[60] -translate-x-1/2 bg-slate-800 text-white text-xs font-medium px-3 py-2 rounded-lg shadow-lg print:hidden"></div>
   <aside id="changelogDrawer" class="fixed top-0 right-0 h-full w-full max-w-sm bg-white shadow-2xl z-50 hidden flex-col" role="dialog" aria-label="Changelog">
     <div class="flex items-center justify-between p-4 border-b border-slate-200">
       <h2 class="text-sm font-bold uppercase tracking-wider text-blue-600">Changelog</h2>
@@ -519,7 +547,7 @@
         hstRate: 0.15,
         legalName: 'HRM Moving',
       },
-      depot: { label: 'U-Haul Dartmouth', address: '' },
+      depot: { label: 'U-Haul Dartmouth', address: '460 Windmill Road, Dartmouth, NS, Canada' },
       travel: {
         avgSpeedKmh: 45,
         depotOverheadHours: 0.75,
@@ -614,6 +642,11 @@
       mirrorReturn: document.getElementById('mirrorReturn'),
       truckLoads: document.getElementById('truckLoads'),
       routeSummary: document.getElementById('routeSummaryStrip'),
+      depotAddress: document.getElementById('depotAddress'),
+      pickupAddress: document.getElementById('pickupAddress'),
+      dropoffAddress: document.getElementById('dropoffAddress'),
+      calculateRouteBtn: document.getElementById('calculateRouteBtn'),
+      routeToast: document.getElementById('routeToast'),
       handlingHours: document.getElementById('handlingHours'),
       driveHoursDisp: document.getElementById('driveHoursDisplay'),
       paidHoursDisp: document.getElementById('paidHoursDisplay'),
@@ -680,6 +713,7 @@
     
 
     function init() {
+      els.depotAddress.value = CONFIG.depot.address;
       // Populate Truck Dropdown
       els.truckSize.innerHTML = Object.entries(CONFIG.trucks).map(([k, v]) => 
         `<option value="${k}">${v.name} ($${v.base} + $${v.perKm}/km)</option>`
@@ -747,6 +781,11 @@
       els.dZA.addEventListener('input', () => {
         if (els.mirrorReturn.checked) els.dBZ.value = els.dZA.value;
       });
+
+      attachAddressSuggestions(els.depotAddress, document.getElementById('depotAddressSuggestions'));
+      attachAddressSuggestions(els.pickupAddress, document.getElementById('pickupAddressSuggestions'));
+      attachAddressSuggestions(els.dropoffAddress, document.getElementById('dropoffAddressSuggestions'));
+      els.calculateRouteBtn.addEventListener('click', calculateRouteFromAddresses);
 
       // Custom Preset
       els.loadPreset.addEventListener('change', (e) => {
@@ -991,6 +1030,133 @@
       else if (totalVol <= 720) { els.truckSize.value = '15ft'; els.handlingHours.value = Math.max(3.5, Math.round((totalVol/150)*10)/10); els.crewSize.value = 2; els.insurance.value = 20; }
       else if (totalVol <= 980) { els.truckSize.value = '20ft'; els.handlingHours.value = Math.max(5.0, Math.round((totalVol/170)*10)/10); els.crewSize.value = 3; els.insurance.value = 25; }
       else { els.truckSize.value = '26ft'; els.handlingHours.value = Math.max(6.5, Math.round((totalVol/180)*10)/10); els.crewSize.value = 4; els.insurance.value = 30; }
+    }
+
+    const routeLookupDelay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    function showRouteToast(message) {
+      if (!els.routeToast) return;
+      els.routeToast.textContent = message;
+      els.routeToast.classList.remove('hidden');
+      clearTimeout(showRouteToast.timer);
+      showRouteToast.timer = setTimeout(() => els.routeToast.classList.add('hidden'), 4000);
+    }
+
+    function formatAddressSuggestion(result) {
+      const address = result.address || {};
+      const street = [address.house_number, address.road].filter(Boolean).join(' ');
+      const locality = address.city || address.town || address.village || address.municipality || address.suburb;
+      const region = [locality, address.state].filter(Boolean).join(', ');
+      return street && region ? `${street}, ${region}` : result.display_name;
+    }
+
+    function attachAddressSuggestions(input, list) {
+      if (!input || !list) return;
+      let timer;
+      const hideSuggestions = () => {
+        list.classList.add('hidden');
+        input.setAttribute('aria-expanded', 'false');
+      };
+      const chooseFirstSuggestion = () => {
+        const first = list.querySelector('button');
+        if (!first) return false;
+        input.value = first.dataset.address;
+        hideSuggestions();
+        return true;
+      };
+      input.addEventListener('input', () => {
+        clearTimeout(timer);
+        hideSuggestions();
+        const query = input.value.trim();
+        if (query.length < 3) return;
+        timer = setTimeout(async () => {
+          try {
+            const url = `https://nominatim.openstreetmap.org/search?format=json&countrycodes=ca&limit=5&q=${encodeURIComponent(query)}`;
+            const response = await fetch(url, { headers: { Accept: 'application/json' } });
+            if (!response.ok) return;
+            const results = await response.json();
+            if (input.value.trim() !== query || !results.length) return;
+            list.replaceChildren(...results.map(result => {
+              const item = document.createElement('li');
+              const button = document.createElement('button');
+              button.type = 'button';
+              button.className = 'w-full flex items-start gap-2 text-left px-3 py-2 hover:bg-blue-50 focus:bg-blue-50 focus:outline-none';
+              button.dataset.address = result.display_name;
+              button.innerHTML = '<span aria-hidden="true" class="text-slate-400 text-sm leading-none">⌖</span>';
+              const label = document.createElement('span');
+              label.textContent = formatAddressSuggestion(result);
+              button.appendChild(label);
+              button.addEventListener('click', () => {
+                input.value = button.dataset.address;
+                hideSuggestions();
+              });
+              item.appendChild(button);
+              return item;
+            }));
+            list.classList.remove('hidden');
+            input.setAttribute('aria-expanded', 'true');
+          } catch (_) {
+            hideSuggestions();
+          }
+        }, 1000);
+      });
+      input.addEventListener('keydown', event => {
+        if (event.key === 'Enter' && chooseFirstSuggestion()) event.preventDefault();
+        if (event.key === 'Escape') hideSuggestions();
+      });
+      input.addEventListener('blur', () => setTimeout(hideSuggestions, 150));
+    }
+
+    async function geocodeAddress(address) {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&countrycodes=ca&limit=1&q=${encodeURIComponent(address)}`;
+      const response = await fetch(url, { headers: { Accept: 'application/json' } });
+      if (!response.ok) throw new Error('Geocoding request failed');
+      const results = await response.json();
+      if (!results.length || !Number.isFinite(Number(results[0].lat)) || !Number.isFinite(Number(results[0].lon))) throw new Error('Address not found');
+      return { lat: Number(results[0].lat), lon: Number(results[0].lon) };
+    }
+
+    async function routedDistance(from, to) {
+      const url = `https://router.project-osrm.org/route/v1/driving/${from.lon},${from.lat};${to.lon},${to.lat}?overview=false`;
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Routing request failed');
+      const result = await response.json();
+      if (!result.routes || !result.routes[0] || !Number.isFinite(result.routes[0].distance)) throw new Error('Route not found');
+      return result.routes[0].distance / 1000;
+    }
+
+    async function calculateRouteFromAddresses() {
+      const addresses = [els.depotAddress.value.trim(), els.pickupAddress.value.trim(), els.dropoffAddress.value.trim()];
+      if (addresses.some(address => !address)) {
+        showRouteToast('Enter depot, pickup, and dropoff addresses first.');
+        return;
+      }
+      const button = els.calculateRouteBtn;
+      button.disabled = true;
+      button.textContent = 'Calculating...';
+      try {
+        const points = [];
+        for (let i = 0; i < addresses.length; i += 1) {
+          if (i > 0) await routeLookupDelay(1000);
+          points.push(await geocodeAddress(addresses[i]));
+        }
+        const depotToPickupKm = await routedDistance(points[0], points[1]);
+        await routeLookupDelay(1000);
+        const pickupToDropoffKm = await routedDistance(points[1], points[2]);
+        els.dZA.value = depotToPickupKm.toFixed(1);
+        els.dAB.value = pickupToDropoffKm.toFixed(1);
+        if (els.mirrorReturn.checked) els.dBZ.value = els.dZA.value;
+        else {
+          await routeLookupDelay(1000);
+          els.dBZ.value = (await routedDistance(points[2], points[0])).toFixed(1);
+        }
+        calculate();
+      } catch (_) {
+        showRouteToast('Map lookup failed, please enter manually.');
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Calculate Route Distances';
+      }
     }
 
     function checkCapacity(totalVolume, truckKey, loads) {
