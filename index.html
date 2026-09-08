@@ -321,9 +321,9 @@
           <div class="p-4 pt-2 border-t border-slate-100 mt-2">
             <div class="flex justify-between items-center mb-1.5">
               <span class="text-xs font-semibold text-slate-700">Target Profit Margin</span>
-              <span id="marginLabel" class="text-xs font-bold text-blue-600">35%</span>
+              <span id="marginLabel" class="text-xs font-bold text-blue-600">40%</span>
             </div>
-            <input type="range" id="profitMargin" min="15" max="60" value="35" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
+            <input type="range" id="profitMargin" min="15" max="60" value="40" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
           </div>
         </details>
 
@@ -1124,6 +1124,12 @@
       if (!result.routes || !result.routes[0] || !Number.isFinite(result.routes[0].distance)) throw new Error('Route not found');
       return result.routes[0].distance / 1000;
     }
+    function formatQuoteTimestamp() {
+      return new Intl.DateTimeFormat('en-CA', {
+        dateStyle: 'long',
+        timeStyle: 'short'
+      }).format(new Date());
+    }
 
     async function calculateRouteFromAddresses() {
       const addresses = [els.depotAddress.value.trim(), els.pickupAddress.value.trim(), els.dropoffAddress.value.trim()];
@@ -1349,6 +1355,8 @@
         const cName = els.customerName && els.customerName.value.trim() ? els.customerName.value.trim() : 'there';
         const bh = hrs.billableHours;
         const hrRate = subtotal / bh;
+        const cashTotal = Math.max(0, displayTotal - 50);
+        const quoteTimestamp = formatQuoteTimestamp();
         
         let tpl = "";
         const hstStr = biz.hstRegistered ? " (incl NS HST)" : "";
@@ -1364,7 +1372,31 @@
            else if (activeTemplate === 'detailed') tpl = `Labor-Only Breakdown:\n• Team: ${movers} Professional Movers\n• Duration: ${minH} hrs minimum (est. ${bh} hrs)\n• Total: $${displayTotal.toFixed(2)}${hstStr}\n${msg}`;
            else tpl = `Booking Confirmed: Labor Only\nTotal: $${displayTotal.toFixed(2)}\nPlease e-Transfer deposit to secure the crew.`;
         } else {
-           if (activeTemplate === 'standard') tpl = `Hi ${cName}! Based on your move details, your quote is $${displayTotal.toFixed(2)}${hstStr}. This includes a ${truckName}, a ${movers}-mover professional crew, and dispatch with a ${minH}-hour minimum; most jobs of this size land around ${bh} hours.${shapeStr}`;
+           if (activeTemplate === 'standard') tpl = `Hi ${cName},
+
+Thank you for reaching out to Nova Harbor Movers. Based on the details you provided, we are pleased to offer you the following estimate for your upcoming move.
+
+Quote Summary
+* Estimated Rate: $${displayTotal.toFixed(0)}
+* Cash Discount Rate: $${cashTotal.toFixed(0)}
+* Crew Size: ${movers} professional movers
+
+We have a busy schedule this upcoming Saturday, so please let us know your preferred start time as soon as possible. To secure your slot and allow us to finalize our team's schedule, we kindly request that you confirm your booking with us by noon on Friday (28th Aug).
+
+To help us prepare adequately and ensure a seamless moving experience, please let us know the following logistical details in advance:
+* Are there any highly fragile items we should be aware of?
+* Does either location have an elevator, or will we need to navigate stairs?
+* Are there any oversized items that might not fit in the elevator?
+* Will there be any long walks or narrow passages from the building to the parking area?
+
+Additionally, if there are specific items that require extra caution to move, please reply with a few photos so our team can plan the safest approach ahead of time.
+
+Quote prepared: ${quoteTimestamp}
+
+We look forward to assisting you with your move.
+
+Sincerely,
+Team Nova Harbor Movers`;
            else if (activeTemplate === 'detailed') tpl = `Detailed Breakdown:\n• Team: ${movers} Movers + ${truckName}\n• Duration: ${minH} hrs minimum (est. ${bh} hrs)\n• Total: $${displayTotal.toFixed(2)}${hstStr} (Includes U-Haul, fuel, labor, equipment)`;
            else tpl = `Booking Confirmed: Full Service\nTotal: $${displayTotal.toFixed(2)} (${movers} movers + ${truckName})\nPlease e-Transfer deposit to secure your slot.`;
         }
